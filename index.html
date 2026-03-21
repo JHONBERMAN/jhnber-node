@@ -3244,7 +3244,7 @@ async function translateNews() {
 // ── 온체인 데이터 (data.json 폴링) ──
 async function fetchOnchainData() {
   try {
-    const res = await fetch('data.json?t=' + Date.now());
+    const res = await fetch('https://web-production-bccbf.up.railway.app/data.json?t=' + Date.now());
     const data = await res.json();
     
     // 고래 알림 표시
