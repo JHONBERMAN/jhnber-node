@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
 """
 X-INTELLIGENCE : JHONBER — NODE
-온체인 데이터 수집 스크립트
+통합 데이터 수집 스크립트 v2.0
 
-Whale Alert API + CryptoQuant 대안으로 거래소 스테이블코인 유입량을 수집하여
-data.json 파일로 저장합니다. HTML 대시보드가 이 파일을 fetch()로 읽어 표시합니다.
+모든 외부 API를 서버에서 수집하여 data.json으로 저장합니다.
+프론트엔드는 data.json 하나만 읽으면 됩니다.
 
-사용법:
-    1) Whale Alert API 키 발급: https://whale-alert.io/signup (무료 플랜)
-    2) 아래 WHALE_ALERT_API_KEY에 키 입력
-    3) python onchain_collector.py 실행 (또는 cron/스케줄러로 1분마다 실행)
-    4) data.json이 같은 디렉토리에 생성됨 → HTML에서 자동 연동
-
-무료 플랜 제한:
-    - $500,000 이상 트랜잭션만 조회 가능
-    - 분당 10회 요청 제한
-    - 최근 1시간 데이터만 조회 가능
+수집 대상:
+  - Yahoo Finance: 주가지수, 원자재, VIX, DXY, M7
+  - Binance Futures: CVD, 펀딩레이트, 롱/쇼트, BTC 도미넌스
+  - FRED: 기준금리, 10년물 국채
+  - CoinGecko: BTC 도미넌스
+  - Whale Alert: 고래 이동 (API 키 필요)
+  - BlockchainCenter: 알트시즌 인덱스
 """
 
 import json
 import time
 import os
 import sys
+import re
 from datetime import datetime, timezone
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
@@ -29,217 +27,172 @@ from urllib.error import URLError, HTTPError
 # ═══════════════════════════════════════════
 # 설정
 # ═══════════════════════════════════════════
-WHALE_ALERT_API_KEY = "YOUR_WHALE_ALERT_API_KEY"  # ← 여기에 키 입력
-OUTPUT_FILE = "data.json"  # HTML과 같은 디렉토리에 저장
-MIN_USD_VALUE = 500000  # $500K 이상 트랜잭션 (무료 플랜 최소)
-POLL_INTERVAL = 60  # 60초마다 폴링
+WHALE_ALERT_API_KEY = os.environ.get("WHALE_ALERT_API_KEY", "YOUR_KEY")
+OUTPUT_FILE = "data.json"
+POLL_INTERVAL = 60
 
-# 주요 거래소 목록
-EXCHANGES = {
-    "binance", "coinbase", "kraken", "bitfinex", "huobi",
-    "okex", "bybit", "kucoin", "gate.io", "crypto.com",
-    "upbit", "bithumb", "gemini", "bitstamp"
-}
 
-# ═══════════════════════════════════════════
-# Whale Alert API 호출
-# ═══════════════════════════════════════════
-def fetch_whale_alerts():
-    """최근 1시간 내 대규모 트랜잭션을 가져옵니다."""
-    if WHALE_ALERT_API_KEY == "YOUR_WHALE_ALERT_API_KEY":
-        print("⚠  Whale Alert API 키가 설정되지 않았습니다. 데모 데이터를 생성합니다.")
-        return generate_demo_data()
-
-    start_time = int(time.time()) - 3600  # 1시간 전
-    url = (
-        f"https://api.whale-alert.io/v1/transactions"
-        f"?api_key={WHALE_ALERT_API_KEY}"
-        f"&min_value={MIN_USD_VALUE}"
-        f"&start={start_time}"
-        f"&cursor=0"
-    )
-
+def safe_fetch(url, timeout=12):
+    """안전한 HTTP 요청 — 실패 시 None 반환"""
     try:
-        req = Request(url, headers={"User-Agent": "X-Intelligence/1.0"})
-        with urlopen(req, timeout=15) as response:
-            data = json.loads(response.read().decode())
-
-        if data.get("result") != "success":
-            print(f"⚠  API 오류: {data.get('message', 'unknown')}")
-            return generate_demo_data()
-
-        transactions = data.get("transactions", [])
-        print(f"✅  {len(transactions)}건의 고래 트랜잭션을 가져왔습니다.")
-        return transactions
-
-    except HTTPError as e:
-        print(f"⚠  HTTP 오류 {e.code}: {e.reason}")
-        return generate_demo_data()
-    except URLError as e:
-        print(f"⚠  네트워크 오류: {e.reason}")
-        return generate_demo_data()
+        req = Request(url, headers={"User-Agent": "JHONBER-NODE/2.0"})
+        response = urlopen(req, timeout=timeout)
+        return response.read().decode()
     except Exception as e:
-        print(f"⚠  알 수 없는 오류: {e}")
-        return generate_demo_data()
+        print(f"    ⚠ fetch 실패: {url[:60]}... → {e}")
+        return None
 
 
-def generate_demo_data():
-    """API 키가 없거나 오류 시 데모 데이터 생성"""
-    now = int(time.time())
-    return [
-        {"symbol": "btc", "amount": 2500, "amount_usd": 325000000,
-         "from": {"owner": "unknown", "owner_type": "unknown"},
-         "to": {"owner": "binance", "owner_type": "exchange"},
-         "timestamp": now - 120},
-        {"symbol": "eth", "amount": 15000, "amount_usd": 52500000,
-         "from": {"owner": "unknown", "owner_type": "unknown"},
-         "to": {"owner": "coinbase", "owner_type": "exchange"},
-         "timestamp": now - 300},
-        {"symbol": "usdt", "amount": 80000000, "amount_usd": 80000000,
-         "from": {"owner": "tether_treasury", "owner_type": "unknown"},
-         "to": {"owner": "binance", "owner_type": "exchange"},
-         "timestamp": now - 600},
-        {"symbol": "btc", "amount": 1200, "amount_usd": 156000000,
-         "from": {"owner": "kraken", "owner_type": "exchange"},
-         "to": {"owner": "unknown", "owner_type": "unknown"},
-         "timestamp": now - 900},
-        {"symbol": "usdc", "amount": 45000000, "amount_usd": 45000000,
-         "from": {"owner": "circle", "owner_type": "unknown"},
-         "to": {"owner": "coinbase", "owner_type": "exchange"},
-         "timestamp": now - 1200},
-        {"symbol": "btc", "amount": 800, "amount_usd": 104000000,
-         "from": {"owner": "unknown", "owner_type": "unknown"},
-         "to": {"owner": "upbit", "owner_type": "exchange"},
-         "timestamp": now - 1500},
-        {"symbol": "usdt", "amount": 120000000, "amount_usd": 120000000,
-         "from": {"owner": "unknown", "owner_type": "unknown"},
-         "to": {"owner": "bybit", "owner_type": "exchange"},
-         "timestamp": now - 1800},
-    ]
+def safe_json(url, timeout=12):
+    """안전한 JSON 요청"""
+    raw = safe_fetch(url, timeout)
+    if raw:
+        try:
+            return json.loads(raw)
+        except:
+            pass
+    return None
 
 
 # ═══════════════════════════════════════════
-# 데이터 가공
+# Yahoo Finance (주가/원자재/VIX/DXY/M7)
 # ═══════════════════════════════════════════
-def process_transactions(transactions):
-    """트랜잭션 데이터를 대시보드용으로 가공합니다."""
+def fetch_yahoo(symbol):
+    """Yahoo Finance에서 단일 심볼 가져오기"""
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1d&interval=5m"
+    data = safe_json(url)
+    if not data:
+        return None
+    try:
+        meta = data["chart"]["result"][0]["meta"]
+        price = meta.get("regularMarketPrice")
+        prev = meta.get("chartPreviousClose")
+        if price and prev:
+            chg = round((price - prev) / prev * 100, 2)
+            return {"price": round(price, 2), "chg": chg}
+    except:
+        pass
+    return None
 
-    whale_alerts = []
-    usdt_inflow = 0
-    usdc_inflow = 0
 
-    for tx in transactions:
-        # 기본 필드 추출
-        symbol = tx.get("symbol", "").upper()
-        amount = tx.get("amount", 0)
-        amount_usd = tx.get("amount_usd", 0)
-        timestamp = tx.get("timestamp", 0)
+def fetch_market_data():
+    """모든 시장 데이터 수집"""
+    print("  📊 시장 데이터 수집 중...")
+    result = {}
 
-        # from/to 처리
-        from_info = tx.get("from", {})
-        to_info = tx.get("to", {})
-        from_owner = from_info.get("owner", "unknown")
-        to_owner = to_info.get("owner", "unknown")
-        from_type = from_info.get("owner_type", "unknown")
-        to_type = to_info.get("owner_type", "unknown")
-
-        # 사람이 읽기 좋은 형태로
-        from_label = from_owner.replace("_", " ").title() if from_owner != "unknown" else "Unknown Wallet"
-        to_label = to_owner.replace("_", " ").title() if to_owner != "unknown" else "Unknown Wallet"
-
-        whale_alerts.append({
-            "symbol": symbol,
-            "amount": amount,
-            "amount_usd": amount_usd,
-            "from": from_label,
-            "to": to_label,
-            "from_type": from_type,
-            "to_type": to_type,
-            "timestamp": timestamp,
-        })
-
-        # 거래소로 향하는 스테이블코인 유입량 집계
-        is_to_exchange = to_type == "exchange" or to_owner.lower() in EXCHANGES
-        if is_to_exchange:
-            if symbol in ("USDT", "TETHER"):
-                usdt_inflow += amount_usd
-            elif symbol in ("USDC", "USD COIN"):
-                usdc_inflow += amount_usd
-
-    # 금액 큰 순으로 정렬
-    whale_alerts.sort(key=lambda x: x["amount_usd"], reverse=True)
-
-    return {
-        "whale_alerts": whale_alerts[:15],
-        "stablecoin_inflow": {
-            "usdt": usdt_inflow,
-            "usdc": usdc_inflow,
-            "total": usdt_inflow + usdc_inflow,
-            "max_reference": 500000000,
-        },
-        "mvrv": generate_mvrv(),
-        "cvd": fetch_binance_cvd(),
-        "last_updated": datetime.now(timezone.utc).isoformat(),
-        "analysis": generate_analysis(whale_alerts, usdt_inflow, usdc_inflow),
+    symbols = {
+        "spx": "^GSPC", "ndx": "^NDX", "dji": "^DJI", "kospi": "^KS11",
+        "vix": "^VIX", "dxy": "DX-Y.NYB",
+        "gold": "GC=F", "silver": "SI=F", "oil": "CL=F",
+        "brent": "BZ=F", "natgas": "NG=F", "copper": "HG=F",
     }
 
+    for key, sym in symbols.items():
+        d = fetch_yahoo(sym)
+        if d:
+            result[key] = d["price"]
+            result[key + "_chg"] = d["chg"]
+            print(f"    ✓ {key}: {d['price']} ({d['chg']:+.2f}%)")
+        time.sleep(0.5)  # 레이트리밋 방지
 
-def fetch_binance_cvd():
-    """
-    Binance Futures aggTrades에서 CVD(Cumulative Volume Delta)를 계산합니다.
-    
-    원리:
-    - aggTrades의 'm' 필드: True = 매수자가 maker(= taker가 매도 = 매도 체결)
-    -                       False = 매도자가 maker(= taker가 매수 = 매수 체결)
-    - CVD = Σ(매수 체결량) - Σ(매도 체결량)
-    
-    체급 분류:
-    - 🐋 100+ BTC: 고래 (기관/세력)
-    - 🦈 10~100 BTC: 상어 (대형 개인)
-    - 🐟 1~10 BTC: 물고기 (중형 개인)  
-    - 🦐 <1 BTC: 새우 (소형 개인/개미)
-    
-    Binance API:
-    - 엔드포인트: https://fapi.binance.com/fapi/v1/aggTrades
-    - 무료, 키 불필요
-    - 제한: 분당 2400 요청
-    """
-    try:
-        # 최근 1시간 aggTrades (limit=1000, 최대)
-        url = "https://fapi.binance.com/fapi/v1/aggTrades?symbol=BTCUSDT&limit=1000"
-        req = Request(url, headers={"User-Agent": "JHONBER-NODE/1.0"})
-        response = urlopen(req, timeout=15)
-        trades = json.loads(response.read().decode())
-        
-        if not trades:
-            return _demo_cvd()
-        
-        # BTC 현재가 추정 (마지막 체결가)
-        btc_price = float(trades[-1]["p"])
-        
-        # 체급별 CVD 계산
-        cvd_whale = 0.0    # 100+ BTC
-        cvd_shark = 0.0    # 10~100 BTC
-        cvd_fish = 0.0     # 1~10 BTC
-        cvd_shrimp = 0.0   # <1 BTC
-        
-        total_buy_vol = 0.0
-        total_sell_vol = 0.0
-        
-        for t in trades:
-            qty = float(t["q"])       # BTC 수량
-            price = float(t["p"])     # 체결가
-            usd_val = qty * price
-            is_sell = t["m"]          # True = taker가 매도
-            
+    # M7
+    print("  💎 M7 수집 중...")
+    m7_list = []
+    for sym in ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]:
+        d = fetch_yahoo(sym)
+        if d:
+            m7_list.append({"sym": sym, "price": d["price"], "chg": d["chg"]})
+            print(f"    ✓ {sym}: ${d['price']} ({d['chg']:+.2f}%)")
+        time.sleep(0.5)
+    result["m7"] = m7_list
+
+    # FRED 기준금리
+    print("  🏦 FRED 수집 중...")
+    raw = safe_fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS")
+    if raw:
+        try:
+            lines = raw.strip().split("\n")
+            result["fed_rate"] = float(lines[-1].split(",")[1])
+            print(f"    ✓ Fed Rate: {result['fed_rate']}%")
+        except:
+            pass
+
+    # FRED 10Y 국채
+    raw = safe_fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10")
+    if raw:
+        try:
+            lines = raw.strip().split("\n")
+            for i in range(len(lines) - 1, 0, -1):
+                val = lines[i].split(",")[1]
+                try:
+                    result["treasury_10y"] = float(val)
+                    print(f"    ✓ 10Y: {result['treasury_10y']}%")
+                    break
+                except:
+                    continue
+        except:
+            pass
+
+    # BTC 도미넌스 (CoinGecko)
+    print("  ₿ 도미넌스 수집 중...")
+    data = safe_json("https://api.coingecko.com/api/v3/global")
+    if data:
+        try:
+            dom = data["data"]["market_cap_percentage"]["btc"]
+            result["btc_dominance"] = round(dom, 1)
+            print(f"    ✓ BTC Dominance: {result['btc_dominance']}%")
+        except:
+            pass
+
+    return result
+
+
+# ═══════════════════════════════════════════
+# Binance Futures (펀딩/롱쇼트/CVD)
+# ═══════════════════════════════════════════
+def fetch_binance_all():
+    """Binance에서 펀딩레이트 + 롱/쇼트 + CVD 한번에"""
+    print("  🔶 Binance 수집 중...")
+    result = {}
+
+    # 펀딩레이트
+    data = safe_json("https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1")
+    if data and len(data) > 0:
+        rate = float(data[0]["fundingRate"])
+        result["funding_rate"] = round(rate * 100, 4)
+        result["funding_str"] = f"{'+' if rate >= 0 else ''}{rate * 100:.4f}%"
+        print(f"    ✓ 펀딩: {result['funding_str']}")
+
+    time.sleep(0.3)
+
+    # 롱/쇼트 비율
+    data = safe_json("https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1")
+    if data and len(data) > 0:
+        result["long_pct"] = round(float(data[0]["longAccount"]) * 100)
+        result["short_pct"] = round(float(data[0]["shortAccount"]) * 100)
+        print(f"    ✓ 롱/쇼트: {result['long_pct']}/{result['short_pct']}")
+
+    time.sleep(0.3)
+
+    # CVD (aggTrades)
+    data = safe_json("https://fapi.binance.com/fapi/v1/aggTrades?symbol=BTCUSDT&limit=1000")
+    if data and len(data) > 0:
+        cvd_whale, cvd_shark, cvd_fish, cvd_shrimp = 0, 0, 0, 0
+        total_buy, total_sell = 0, 0
+
+        for t in data:
+            qty = float(t["q"])
+            price = float(t["p"])
+            usd = qty * price
+            is_sell = t["m"]
+
             if is_sell:
-                total_sell_vol += usd_val
-                delta = -usd_val
+                total_sell += usd
+                delta = -usd
             else:
-                total_buy_vol += usd_val
-                delta = usd_val
-            
-            # 체급 분류
+                total_buy += usd
+                delta = usd
+
             if qty >= 100:
                 cvd_whale += delta
             elif qty >= 10:
@@ -248,299 +201,399 @@ def fetch_binance_cvd():
                 cvd_fish += delta
             else:
                 cvd_shrimp += delta
-        
-        total_cvd = cvd_whale + cvd_shark + cvd_fish + cvd_shrimp
-        
-        # 분석 텍스트 생성
-        analysis = _generate_cvd_analysis(cvd_whale, cvd_shark, cvd_fish, cvd_shrimp, total_cvd)
-        
-        return {
-            "total": round(total_cvd),
-            "whale": round(cvd_whale),      # 100+ BTC
-            "shark": round(cvd_shark),       # 10~100 BTC
-            "fish": round(cvd_fish),         # 1~10 BTC
-            "shrimp": round(cvd_shrimp),     # <1 BTC
-            "buy_volume": round(total_buy_vol),
-            "sell_volume": round(total_sell_vol),
-            "btc_price": btc_price,
-            "trade_count": len(trades),
-            "source": "Binance Futures BTCUSDT",
+
+        total = cvd_whale + cvd_shark + cvd_fish + cvd_shrimp
+
+        # 분석
+        if cvd_whale > 0 and cvd_shrimp < 0:
+            analysis = f'<span style="color:var(--green);font-weight:700;">고래 매수 우세</span> — 🐋 100+ BTC 체급 적극 매수(${abs(cvd_whale)/1e6:.1f}M). 🦐 개미 패닉셀(${abs(cvd_shrimp)/1e6:.1f}M). <span style="color:var(--gold)">바닥 축적 패턴</span>.'
+        elif cvd_whale < 0 and cvd_shrimp > 0:
+            analysis = f'<span style="color:var(--red);font-weight:700;">고래 매도 우세</span> — 🐋 ${abs(cvd_whale)/1e6:.1f}M 매도. 🦐 개미가 받는 중. <span style="color:var(--red)">물량 떠넘기기</span>.'
+        elif total > 0:
+            analysis = f'<span style="color:var(--green)">전체 매수 우세</span> — CVD ${total/1e6:.1f}M.'
+        else:
+            analysis = f'<span style="color:var(--red)">전체 매도 우세</span> — CVD ${total/1e6:.1f}M.'
+
+        result["cvd"] = {
+            "total": round(total), "whale": round(cvd_whale),
+            "shark": round(cvd_shark), "fish": round(cvd_fish),
+            "shrimp": round(cvd_shrimp),
+            "buy_volume": round(total_buy), "sell_volume": round(total_sell),
+            "btc_price": float(data[-1]["p"]),
+            "trade_count": len(data), "source": "Binance Futures BTCUSDT",
             "analysis": analysis,
         }
+        print(f"    ✓ CVD: ${total/1e6:.1f}M ({len(data)} trades)")
+    else:
+        print("    ⚠ CVD 수집 실패 — 데모 사용")
+
+    return result
+
+
+# ═══════════════════════════════════════════
+# 알트시즌 인덱스 (BlockchainCenter 스크래핑)
+# ═══════════════════════════════════════════
+def fetch_altseason():
+    """BlockchainCenter 알트시즌 인덱스"""
+    print("  🔄 알트시즌 인덱스 수집 중...")
+    raw = safe_fetch("https://www.blockchaincenter.net/en/altcoin-season-index/")
+    if raw:
+        try:
+            # 페이지에서 인덱스 값 추출
+            match = re.search(r'"month1":\s*(\d+)', raw)
+            if match:
+                val = int(match.group(1))
+                print(f"    ✓ 알트시즌: {val}")
+                return val
+            # 대안 패턴
+            match = re.search(r'Altcoin Season Index[^0-9]*(\d+)', raw)
+            if match:
+                val = int(match.group(1))
+                print(f"    ✓ 알트시즌: {val}")
+                return val
+        except:
+            pass
+    # 실패 시 CoinGecko 기반 자체 계산
+    print("    ⚠ BlockchainCenter 실패 — CoinGecko 기반 계산")
+    return fetch_altseason_coingecko()
+
+
+def fetch_altseason_coingecko():
+    """CoinGecko TOP50 기반 알트시즌 자체 계산"""
+    data = safe_json("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=30d")
+    if not data:
+        return None
+    try:
+        btc = next((c for c in data if c["id"] == "bitcoin"), None)
+        if not btc:
+            return None
+        btc_chg = btc.get("price_change_percentage_30d_in_currency", 0) or 0
+        stables = {"tether", "usd-coin", "dai", "binance-usd", "first-digital-usd"}
+        alts = [c for c in data if c["id"] != "bitcoin" and c["id"] not in stables]
+        outperform = [c for c in alts if (c.get("price_change_percentage_30d_in_currency", 0) or 0) > btc_chg]
+        score = round(len(outperform) / max(len(alts), 1) * 100)
+        print(f"    ✓ 알트시즌 (CoinGecko): {score}")
+        return score
+    except:
+        return None
+
+
+# ═══════════════════════════════════════════
+# Whale Alert
+# ═══════════════════════════════════════════
+def fetch_whale_alerts():
+    """Whale Alert API에서 대형 트랜잭션 수집"""
+    if WHALE_ALERT_API_KEY == "YOUR_KEY":
+        print("  ⚠ Whale Alert 키 미설정 → 데모")
+        return generate_demo_whales()
+
+    now = int(time.time())
+    url = f"https://api.whale-alert.io/v1/transactions?api_key={WHALE_ALERT_API_KEY}&min_value=500000&start={now - 3600}"
+    data = safe_json(url)
+    if data and data.get("transactions"):
+        return data["transactions"]
+    return generate_demo_whales()
+
+
+def generate_demo_whales():
+    """데모 고래 데이터"""
+    import random
+    now = int(time.time())
+    demos = [
+        {"symbol": "BTC", "amount": 2500, "amount_usd": 325000000, "from": "Unknown Wallet", "to": "Binance", "timestamp": now - 120, "to_type": "exchange"},
+        {"symbol": "BTC", "amount": 1200, "amount_usd": 156000000, "from": "Kraken", "to": "Unknown Wallet", "timestamp": now - 300, "from_type": "exchange"},
+        {"symbol": "USDT", "amount": 80000000, "amount_usd": 80000000, "from": "Tether Treasury", "to": "Binance", "timestamp": now - 600, "to_type": "exchange"},
+        {"symbol": "ETH", "amount": 15000, "amount_usd": 52500000, "from": "Unknown Wallet", "to": "Coinbase", "timestamp": now - 900, "to_type": "exchange"},
+        {"symbol": "USDC", "amount": 45000000, "amount_usd": 45000000, "from": "Circle", "to": "Coinbase", "timestamp": now - 1200, "to_type": "exchange"},
+        {"symbol": "BTC", "amount": 800, "amount_usd": 104000000, "from": "Unknown Wallet", "to": "Upbit", "timestamp": now - 1500, "to_type": "exchange"},
+        {"symbol": "USDT", "amount": random.randint(50, 200) * 1000000, "amount_usd": random.randint(50, 200) * 1000000, "from": "Unknown Wallet", "to": "Binance", "timestamp": now - 1800, "to_type": "exchange"},
+    ]
+    return demos
+
+
+def process_whales(transactions):
+    """고래 트랜잭션 처리"""
+    whale_alerts = []
+    usdt_inflow, usdc_inflow = 0, 0
+
+    for tx in transactions:
+        symbol = tx.get("symbol", "?").upper()
+        amount_usd = tx.get("amount_usd", 0)
+        to_type = tx.get("to_type", "")
+
+        if to_type == "exchange":
+            if symbol == "USDT":
+                usdt_inflow += amount_usd
+            elif symbol == "USDC":
+                usdc_inflow += amount_usd
+
+        whale_alerts.append({
+            "symbol": symbol,
+            "amount": tx.get("amount", 0),
+            "amount_usd": amount_usd,
+            "from": tx.get("from", "Unknown"),
+            "to": tx.get("to", "Unknown"),
+            "timestamp": tx.get("timestamp", 0),
+        })
+
+    whale_alerts.sort(key=lambda x: x["amount_usd"], reverse=True)
+    return whale_alerts[:15], usdt_inflow, usdc_inflow
+
+
+# ═══════════════════════════════════════════
+# MVRV (Blockchain.com 무료 API)
+# ═══════════════════════════════════════════
+def fetch_mvrv():
+    """Blockchain.com에서 MVRV 가져오기 (키 불필요)"""
+    print("  📐 MVRV 수집 중...")
+    data = safe_json("https://api.blockchain.info/charts/mvrv?timespan=1days&format=json")
+    if data and data.get("values"):
+        value = data["values"][-1]["y"]
+        value = round(value, 2)
         
-    except Exception as e:
-        print(f"⚠  Binance CVD 수집 실패: {e}")
-        return _demo_cvd()
-
-
-def _generate_cvd_analysis(whale, shark, fish, shrimp, total):
-    """CVD 체급별 분석 텍스트"""
+        if value > 3.5:
+            a = f'MVRV <span style="color:var(--red)">{value}</span> — 극도 과열. 차익 실현 매물 대량 출회 가능. 레버리지 즉시 축소.'
+        elif value > 2.5:
+            a = f'MVRV <span style="color:var(--gold)">{value}</span> — 수익 구간. 과열 접근 중. 부분 익절 고려.'
+        elif value > 1.0:
+            a = f'MVRV <span style="color:var(--green)">{value}</span> — 건강한 상승 구간. 목성(게자리) 확장 에너지와 공명.'
+        else:
+            a = f'MVRV <span style="color:var(--cyan)">{value}</span> — 저평가! 홀더 대부분 손실. 역발상 매수 최적 타점.'
+        
+        print(f"    ✓ MVRV: {value}")
+        return {"value": value, "analysis": a}
     
-    whale_dir = "매수" if whale > 0 else "매도"
-    shrimp_dir = "매수" if shrimp > 0 else "매도"
-    
-    # 고래 매수 + 개미 매도 = 전형적 바닥 축적
-    if whale > 0 and shrimp < 0:
-        signal = f'<span style="color:var(--green);font-weight:700;">고래 매수 우세</span> — 🐋 100+ BTC 체급이 적극 매수 중(${abs(whale)/1e6:.1f}M). 🦐 개미는 패닉셀 중(${abs(shrimp)/1e6:.1f}M). <span style="color:var(--gold)">전형적인 바닥 축적 패턴</span>. 스마트머니를 따라가세요.'
-    # 고래 매도 + 개미 매수 = 물량 떠넘기기
-    elif whale < 0 and shrimp > 0:
-        signal = f'<span style="color:var(--red);font-weight:700;">고래 매도 우세</span> — 🐋 체급이 ${abs(whale)/1e6:.1f}M 매도 중. 🦐 개미가 매수로 받고 있음. <span style="color:var(--red)">물량 떠넘기기 패턴</span>. 추격 매수 위험.'
-    # 전체 매수 우세
-    elif total > 0:
-        signal = f'<span style="color:var(--green)">전체 매수 우세</span> — 총 CVD ${total/1e6:.1f}M. 매수 모멘텀이 살아있는 구간.'
-    # 전체 매도 우세
-    else:
-        signal = f'<span style="color:var(--red)">전체 매도 우세</span> — 총 CVD ${total/1e6:.1f}M. 매도 압력 지속 중. 관망 권장.'
-    
-    return signal
-
-
-def _demo_cvd():
-    """Binance 연결 실패 시 데모 CVD"""
+    print("    ⚠ MVRV 수집 실패 — 데모")
     import random
-    whale = random.randint(10_000_000, 50_000_000) * random.choice([1, -1])
-    shark = random.randint(3_000_000, 15_000_000) * random.choice([1, -1])
-    fish = random.randint(-10_000_000, 10_000_000)
-    shrimp = random.randint(-20_000_000, -5_000_000)  # 개미는 보통 매도 우세
-    total = whale + shark + fish + shrimp
-    
-    return {
-        "total": total,
-        "whale": whale,
-        "shark": shark,
-        "fish": fish,
-        "shrimp": shrimp,
-        "buy_volume": abs(total) + random.randint(50_000_000, 100_000_000),
-        "sell_volume": abs(total) + random.randint(50_000_000, 100_000_000),
-        "btc_price": 70000,
-        "trade_count": 1000,
-        "source": "Demo (Binance 연결 대기)",
-        "analysis": _generate_cvd_analysis(whale, shark, fish, shrimp, total),
-    }
-
-
-def generate_mvrv():
-    """
-    MVRV Ratio 데이터.
-    실제 연동 시 CryptoQuant API 또는 Glassnode API를 사용하세요.
-    - CryptoQuant: https://cryptoquant.com/docs
-    - Glassnode: https://docs.glassnode.com
-    현재는 데모 값을 생성합니다.
-    """
-    import random
-    # 데모: 1.5 ~ 3.0 사이 랜덤 (실제로는 API에서 가져옴)
     value = round(random.uniform(1.5, 3.0), 2)
-    
-    if value > 3.5:
-        analysis = f'MVRV <span style="color:var(--red)">{value}</span> — 극도 과열. 대부분의 홀더가 큰 수익 구간. 차익 실현 매물 대량 출회 가능성. 레버리지 즉시 축소 권장.'
-    elif value > 2.5:
-        analysis = f'MVRV <span style="color:var(--gold)">{value}</span> — 수익 구간 진입. 과열까지는 여유 있으나 부분 익절 전략 고려. 토성의 보수적 에너지와 공명하여 리스크 관리 필요.'
-    elif value > 1.0:
-        analysis = f'MVRV <span style="color:var(--green)">{value}</span> — 건강한 상승 구간. 홀더 대부분 소폭 수익. 목성(게자리) 확장 에너지 아래 점진적 상승 트렌드 유지 가능.'
-    else:
-        analysis = f'MVRV <span style="color:var(--cyan)">{value}</span> — 저평가 구간! 홀더 대부분 손실. 역사적으로 최고의 진입 타점. 역발상 풀매수 시그널.'
-    
-    return {"value": value, "analysis": analysis}
+    return {"value": value, "analysis": f'MVRV {value} — 데모 데이터'}
 
 
-def generate_analysis(alerts, usdt, usdc):
-    """온체인 × 점성술 연계 분석 텍스트 생성"""
-    total = usdt + usdc
-    exchange_inflow = sum(1 for a in alerts if a.get("to_type") == "exchange")
-    exchange_outflow = sum(1 for a in alerts if a.get("from_type") == "exchange")
+# ═══════════════════════════════════════════
+# 김치프리미엄 (업비트 vs 바이낸스)
+# ═══════════════════════════════════════════
+def fetch_kimchi_premium():
+    """업비트 BTC/KRW vs 바이낸스 BTC/USDT × 환율 = 김프"""
+    print("  🌶️ 김프 수집 중...")
+    try:
+        # 업비트 BTC 원화 시세
+        upbit = safe_json("https://api.upbit.com/v1/ticker?markets=KRW-BTC")
+        if not upbit:
+            return None
+        btc_krw = upbit[0]["trade_price"]
 
-    if total > 300000000:
-        energy = "과열"
-        astro = '<span style="color:var(--red)">화성의 파괴적 에너지</span>와 공명하는 대규모 자금 이동이 감지됩니다.'
-    elif total > 150000000:
-        energy = "고에너지"
-        astro = '<span style="color:var(--gold)">목성(게자리)</span>의 확장 에너지 아래 기관급 자금이 활발히 이동하고 있습니다.'
-    else:
-        energy = "안정"
-        astro = '<span style="color:var(--green)">금성</span>의 조화로운 에너지가 시장에 안정감을 부여하고 있습니다.'
+        # 바이낸스 BTC/USDT
+        binance = safe_json("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
+        if not binance:
+            return None
+        btc_usdt = float(binance["price"])
 
-    flow_text = ""
-    if exchange_inflow > exchange_outflow:
-        flow_text = "거래소 순유입 우세 → 단기 매도 압력 가능성에 주의하세요."
-    elif exchange_outflow > exchange_inflow:
-        flow_text = "거래소 순유출 우세 → 장기 보유(HODL) 심리 강화 신호입니다."
-    else:
-        flow_text = "유입/유출이 균형 → 관망 장세, 방향성 탐색 구간입니다."
+        # 환율
+        forex = safe_json("https://api.exchangerate-api.com/v4/latest/USD")
+        if not forex:
+            return None
+        krw_rate = forex["rates"]["KRW"]
 
-    return (
-        f"에너지 레벨: <span style='color:var(--gold)'>{energy}</span> — {astro} "
-        f"스테이블코인 총 유입 <span style='color:var(--cyan)'>${total/1000000:.0f}M</span>. "
-        f"{flow_text}"
-    )
+        # 김프 계산
+        btc_global_krw = btc_usdt * krw_rate
+        premium = ((btc_krw - btc_global_krw) / btc_global_krw) * 100
+
+        result = {
+            "premium": round(premium, 2),
+            "btc_krw": round(btc_krw),
+            "btc_global_krw": round(btc_global_krw),
+            "krw_rate": round(krw_rate, 0),
+        }
+        print(f"    ✓ 김프: {premium:+.2f}% (업비트 ₩{btc_krw:,.0f} vs 글로벌 ₩{btc_global_krw:,.0f})")
+        return result
+    except Exception as e:
+        print(f"    ⚠ 김프 수집 실패: {e}")
+        return None
+
+
+# ═══════════════════════════════════════════
+# 청산맵 추산 (Binance 미결제약정 기반)
+# ═══════════════════════════════════════════
+def fetch_liquidation_estimate():
+    """Binance 미결제약정 + 가격대별 청산 추산"""
+    print("  💥 청산맵 수집 중...")
+    try:
+        # 현재가
+        ticker = safe_json("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
+        if not ticker:
+            return None
+        current_price = float(ticker["price"])
+
+        # 미결제약정
+        oi = safe_json("https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT")
+        oi_val = float(oi["openInterest"]) if oi else 0
+
+        # 24h 청산 (Binance public)
+        # Binance에서 직접 청산 데이터는 제한적 → 미결제약정 기반 추산
+        range_pct = 0.06  # ±6% 범위
+        high = round(current_price * (1 + range_pct))
+        low = round(current_price * (1 - range_pct))
+
+        # 청산 밀집 구간 추산 (레버리지 10~25x 기준)
+        long_liq_zone = {
+            "start": round(current_price * 0.94),
+            "end": round(current_price * 0.97),
+            "description": f"${round(current_price*0.94):,} ~ ${round(current_price*0.97):,}"
+        }
+        short_liq_zone = {
+            "start": round(current_price * 1.03),
+            "end": round(current_price * 1.06),
+            "description": f"${round(current_price*1.03):,} ~ ${round(current_price*1.06):,}"
+        }
+        magnet = round(current_price * 0.955)
+
+        result = {
+            "current_price": round(current_price),
+            "open_interest": round(oi_val, 2),
+            "price_high": high,
+            "price_low": low,
+            "long_liq_zone": long_liq_zone,
+            "short_liq_zone": short_liq_zone,
+            "magnet_price": magnet,
+        }
+        print(f"    ✓ 청산맵: 현재가 ${current_price:,.0f} | OI: {oi_val:.0f} BTC")
+        return result
+    except Exception as e:
+        print(f"    ⚠ 청산맵 수집 실패: {e}")
+        return None
+
+
+# ═══════════════════════════════════════════
+# 전쟁지수 (뉴스 헤드라인 키워드 빈도)
+# ═══════════════════════════════════════════
+def fetch_war_index():
+    """RSS 뉴스 키워드 빈도 기반 전쟁 긴장 지수"""
+    print("  ⚔️ 전쟁지수 수집 중...")
+    war_keywords = [
+        "war", "military", "missile", "strike", "attack", "bomb",
+        "invasion", "troops", "sanctions", "nuclear", "iran", "israel",
+        "taiwan", "ukraine", "russia", "north korea", "hezbollah",
+        "houthi", "pentagon", "nato", "conflict", "escalation"
+    ]
+    try:
+        # Reuters RSS
+        rss = safe_fetch("https://feeds.reuters.com/reuters/worldNews")
+        if not rss:
+            rss = ""
+        
+        text = rss.lower()
+        count = sum(text.count(kw) for kw in war_keywords)
+        
+        # 0~100 스케일 (키워드 0개=0, 50개+=100)
+        score = min(100, round(count * 2))
+        
+        if score >= 80:
+            label = "CRITICAL"
+        elif score >= 61:
+            label = "HIGH RISK"
+        elif score >= 31:
+            label = "ELEVATED"
+        else:
+            label = "STABLE"
+        
+        print(f"    ✓ 전쟁지수: {score} ({label}) — 키워드 {count}개")
+        return {"value": score, "label": label, "keyword_count": count}
+    except Exception as e:
+        print(f"    ⚠ 전쟁지수 수집 실패: {e}")
+        return {"value": 48, "label": "ELEVATED", "keyword_count": 0}
 
 
 # ═══════════════════════════════════════════
 # 메인 실행
 # ═══════════════════════════════════════════
 def run_once():
-    """한 번 실행하여 data.json 저장"""
-    print(f"🔍  전체 데이터 수집 중... ({datetime.now().strftime('%H:%M:%S')})")
+    """전체 데이터 수집 → data.json 저장"""
+    print(f"\n{'='*50}")
+    print(f"  🔍 전체 수집 시작 ({datetime.now().strftime('%H:%M:%S')})")
+    print(f"{'='*50}")
+
+    # 1) 시장 데이터 (Yahoo/FRED/CoinGecko)
+    market = fetch_market_data()
+
+    # 2) Binance (펀딩/롱쇼트/CVD)
+    binance = fetch_binance_all()
+
+    # 3) 고래 이동
+    print("  🐋 고래 데이터 수집 중...")
     transactions = fetch_whale_alerts()
-    result = process_transactions(transactions)
-    
-    # 시장 데이터 수집 (프록시 불필요 — 서버에서 직접 호출)
-    result["market"] = fetch_market_data()
-    result["funding"] = fetch_funding_data()
-    
-    # JSON 저장
+    whale_alerts, usdt, usdc = process_whales(transactions)
+
+    # 4) 알트시즌
+    altseason = fetch_altseason()
+
+    # 5) 김프
+    kimchi = fetch_kimchi_premium()
+
+    # 6) 청산맵
+    liquidation = fetch_liquidation_estimate()
+
+    # 7) 전쟁지수
+    war_index = fetch_war_index()
+
+    # 8) MVRV
+    mvrv = fetch_mvrv()
+
+    # 결과 조합
+    result = {
+        "market": market,
+        "funding": {
+            "rate": binance.get("funding_rate"),
+            "rate_str": binance.get("funding_str", "--"),
+            "long_pct": binance.get("long_pct"),
+            "short_pct": binance.get("short_pct"),
+        },
+        "cvd": binance.get("cvd"),
+        "whale_alerts": whale_alerts,
+        "stablecoin_inflow": {
+            "usdt": usdt, "usdc": usdc,
+            "total": usdt + usdc, "max_reference": 500000000,
+        },
+        "altseason": altseason,
+        "kimchi": kimchi,
+        "liquidation": liquidation,
+        "war_index": war_index,
+        "mvrv": mvrv,
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # 저장
     output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), OUTPUT_FILE)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
-    print(f"💾  {output_path} 저장 완료")
-    print(f"    고래 알림: {len(result['whale_alerts'])}건")
-    m = result.get("market", {})
-    print(f"    SPX: {m.get('spx','N/A')} | NDX: {m.get('ndx','N/A')} | VIX: {m.get('vix','N/A')}")
-    print(f"    GOLD: {m.get('gold','N/A')} | OIL: {m.get('oil','N/A')}")
-    f_data = result.get("funding", {})
-    print(f"    펀딩: {f_data.get('rate','N/A')} | 롱/쇼트: {f_data.get('long_pct','N/A')}/{f_data.get('short_pct','N/A')}")
-    return result
-
-
-def fetch_market_data():
-    """Yahoo Finance에서 주가/원자재/VIX + FRED 금리 수집"""
-    symbols = {
-        'spx': '^GSPC',
-        'ndx': '^NDX',
-        'dji': '^DJI',
-        'kospi': '^KS11',
-        'vix': '^VIX',
-        'dxy': 'DX-Y.NYB',
-        'gold': 'GC=F',
-        'silver': 'SI=F',
-        'oil': 'CL=F',
-        'brent': 'BZ=F',
-        'natgas': 'NG=F',
-        'copper': 'HG=F',
-    }
-    result = {}
-    
-    for key, sym in symbols.items():
-        try:
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=1d&interval=5m"
-            req = Request(url, headers={"User-Agent": "JHONBER-NODE/1.0"})
-            response = urlopen(req, timeout=10)
-            data = json.loads(response.read().decode())
-            meta = data.get("chart", {}).get("result", [{}])[0].get("meta", {})
-            price = meta.get("regularMarketPrice")
-            prev = meta.get("chartPreviousClose")
-            if price:
-                chg = ((price - prev) / prev * 100) if prev else 0
-                result[key] = round(price, 2)
-                result[key + "_chg"] = round(chg, 2)
-        except Exception as e:
-            print(f"    ⚠ {key} 수집 실패: {e}")
-    
-    # M7 빅테크
-    m7_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA']
-    m7_data = []
-    for sym in m7_symbols:
-        try:
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=1d&interval=5m"
-            req = Request(url, headers={"User-Agent": "JHONBER-NODE/1.0"})
-            response = urlopen(req, timeout=10)
-            data = json.loads(response.read().decode())
-            meta = data.get("chart", {}).get("result", [{}])[0].get("meta", {})
-            price = meta.get("regularMarketPrice")
-            prev = meta.get("chartPreviousClose")
-            if price:
-                chg = ((price - prev) / prev * 100) if prev else 0
-                m7_data.append({"sym": sym, "price": round(price, 2), "chg": round(chg, 2)})
-        except:
-            pass
-    result["m7"] = m7_data
-    
-    # FRED 기준금리 + 10년물
-    try:
-        url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS"
-        req = Request(url, headers={"User-Agent": "JHONBER-NODE/1.0"})
-        response = urlopen(req, timeout=10)
-        text = response.read().decode()
-        lines = text.strip().split('\n')
-        last_val = lines[-1].split(',')[1]
-        result["fed_rate"] = float(last_val)
-    except Exception as e:
-        print(f"    ⚠ FRED 금리 수집 실패: {e}")
-    
-    try:
-        url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10"
-        req = Request(url, headers={"User-Agent": "JHONBER-NODE/1.0"})
-        response = urlopen(req, timeout=10)
-        text = response.read().decode()
-        lines = text.strip().split('\n')
-        for i in range(len(lines)-1, 0, -1):
-            val = lines[i].split(',')[1]
-            try:
-                result["treasury_10y"] = float(val)
-                break
-            except:
-                continue
-    except Exception as e:
-        print(f"    ⚠ FRED 10Y 수집 실패: {e}")
-    
-    return result
-
-
-def fetch_funding_data():
-    """Binance Futures 펀딩레이트 + 롱/쇼트 비율"""
-    result = {}
-    
-    # 펀딩레이트
-    try:
-        url = "https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1"
-        req = Request(url, headers={"User-Agent": "JHONBER-NODE/1.0"})
-        response = urlopen(req, timeout=10)
-        data = json.loads(response.read().decode())
-        if data:
-            rate = float(data[0]["fundingRate"])
-            result["rate"] = round(rate * 100, 4)  # % 단위
-            result["rate_str"] = f"{'+' if rate >= 0 else ''}{rate*100:.4f}%"
-    except Exception as e:
-        print(f"    ⚠ 펀딩레이트 수집 실패: {e}")
-    
-    # 롱/쇼트 비율
-    try:
-        url = "https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1"
-        req = Request(url, headers={"User-Agent": "JHONBER-NODE/1.0"})
-        response = urlopen(req, timeout=10)
-        data = json.loads(response.read().decode())
-        if data:
-            result["long_pct"] = round(float(data[0]["longAccount"]) * 100)
-            result["short_pct"] = round(float(data[0]["shortAccount"]) * 100)
-    except Exception as e:
-        print(f"    ⚠ 롱/쇼트 수집 실패: {e}")
-    
+    print(f"\n  💾 저장 완료: {output_path}")
+    print(f"  SPX: {market.get('spx')} | NDX: {market.get('ndx')} | VIX: {market.get('vix')}")
+    print(f"  GOLD: {market.get('gold')} | OIL: {market.get('oil')} | BRENT: {market.get('brent')}")
+    print(f"  펀딩: {binance.get('funding_str')} | 롱/쇼트: {binance.get('long_pct')}/{binance.get('short_pct')}")
+    print(f"  알트시즌: {altseason} | 도미넌스: {market.get('btc_dominance')}%")
+    if kimchi:
+        print(f"  김프: {kimchi['premium']:+.2f}%")
+    if war_index:
+        print(f"  전쟁지수: {war_index['value']} ({war_index['label']})")
     return result
 
 
 def run_loop():
-    """무한 루프로 POLL_INTERVAL마다 실행"""
     print("=" * 50)
     print("  X-INTELLIGENCE : JHONBER — NODE")
-    print("  온체인 데이터 수집기 v1.0")
+    print("  통합 데이터 수집기 v2.0")
     print("=" * 50)
-    print(f"  폴링 간격: {POLL_INTERVAL}초")
-    print(f"  최소 금액: ${MIN_USD_VALUE:,.0f}")
-    print(f"  API 키: {'설정됨' if WHALE_ALERT_API_KEY != 'YOUR_WHALE_ALERT_API_KEY' else '미설정 (데모 모드)'}")
-    print("=" * 50)
-    print()
 
     while True:
         try:
             run_once()
-            print(f"⏳  {POLL_INTERVAL}초 후 다음 폴링...\n")
+            print(f"\n  ⏳ {POLL_INTERVAL}초 후 다음 수집...\n")
             time.sleep(POLL_INTERVAL)
         except KeyboardInterrupt:
-            print("\n🛑  수집기 종료")
+            print("\n  🛑 종료")
             sys.exit(0)
         except Exception as e:
-            print(f"⚠  오류 발생: {e}")
-            print(f"⏳  30초 후 재시도...\n")
+            print(f"\n  ⚠ 오류: {e}")
             time.sleep(30)
 
 
