@@ -25,14 +25,42 @@ PORT = int(os.environ.get("PORT", 5000))
 # ── 캐시된 응답 (메모리) ──
 _cache = {"body": b"", "etag": "", "mtime": 0, "gzipped": b""}
 
-# ── 실시간 방문자 추적 (메모리) ──
+# ── 실시간 방문자 추적 (메모리 + 파일 영속) ──
+VISITOR_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "visitor_count.json")
+
+def _load_visitor_persist():
+    """영속 저장된 방문자 카운트 로드"""
+    try:
+        if os.path.exists(VISITOR_FILE):
+            with open(VISITOR_FILE, "r") as f:
+                data = json.load(f)
+            return data.get("total_all", 0), data.get("today_date", ""), data.get("total_today", 0), data.get("peak_today", 0)
+    except Exception:
+        pass
+    return 0, "", 0, 0
+
+def _save_visitor_persist():
+    """방문자 카운트 파일에 영속 저장"""
+    try:
+        with open(VISITOR_FILE, "w") as f:
+            json.dump({
+                "total_all": _visitors["total_all"],
+                "total_today": _visitors["total_today"],
+                "today_date": _visitors["today_date"],
+                "peak_today": _visitors["peak_today"],
+            }, f)
+    except Exception:
+        pass
+
+# 서버 시작 시 영속 데이터 복원
+_persisted = _load_visitor_persist()
 _visitors = {
-    "active": {},        # {visitor_id: last_ping_timestamp}
-    "total_today": 0,
-    "total_all": 0,
-    "today_date": "",
-    "peak_today": 0,
-    "country_count": defaultdict(int),  # 간이 국가별 카운트
+    "active": {},
+    "total_all": _persisted[0],
+    "today_date": _persisted[1],
+    "total_today": _persisted[2],
+    "peak_today": _persisted[3],
+    "country_count": defaultdict(int),
 }
 _visitors_lock = threading.Lock()
 VISITOR_TIMEOUT = 120  # 2분 내 ping 없으면 이탈로 간주
@@ -147,6 +175,10 @@ def visitor_ping():
         active_count = len(_visitors["active"])
         if active_count > _visitors["peak_today"]:
             _visitors["peak_today"] = active_count
+
+        # 새 방문자면 영속 저장 (토탈 유지)
+        if is_new:
+            _save_visitor_persist()
 
         return Response(
             json.dumps({
