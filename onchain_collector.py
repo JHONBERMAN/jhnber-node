@@ -635,6 +635,112 @@ def collect_altseason():
 
 # ── SLOW: 고래 알림 ──────────────────────────────────
 
+# ── SLOW: 스테이블코인 유입량 (DefiLlama) ─────────────
+
+_stable_cache = {"data": None, "last": 0}
+
+def collect_stablecoin_flow():
+    """DefiLlama → USDT/USDC 시총 변동 (하루 1번)
+    
+    거래소 유입량 직접 측정은 불가능하지만,
+    스테이블코인 시총 증가 = 시장으로 새 자금 유입과 유사.
+    """
+    global _stable_cache
+    now = time.time()
+    
+    # 24시간 이내면 캐시
+    if _stable_cache["data"] and (now - _stable_cache["last"]) < 86400:
+        print("  💵 스테이블코인… (캐시)")
+        return _stable_cache["data"]
+    
+    print("  💵 스테이블코인 (DefiLlama)…")
+    
+    result = {"usdt": 0, "usdc": 0, "total": 0, "usdt_mcap": 0, "usdc_mcap": 0,
+              "usdt_change_1d": 0, "usdc_change_1d": 0}
+    
+    # USDT (id=1), USDC (id=2)
+    for coin_id, key in [("1", "usdt"), ("2", "usdc")]:
+        try:
+            data = fetch_json(f"https://stablecoins.llama.fi/stablecoin/{coin_id}")
+            if data and data.get("chainBalances"):
+                # 전체 시총 가져오기
+                tokens = data.get("tokens", [])
+                if len(tokens) >= 2:
+                    current = tokens[-1].get("circulating", {}).get("peggedUSD", 0)
+                    previous = tokens[-2].get("circulating", {}).get("peggedUSD", 0)
+                    change = current - previous
+                    result[key] = round(abs(change))
+                    result[f"{key}_mcap"] = round(current)
+                    result[f"{key}_change_1d"] = round(change)
+                    print(f"    ✓ {key.upper()}: ${current/1e9:.1f}B (변동: ${change/1e6:.1f}M)")
+        except Exception as e:
+            print(f"    ⚠ {key.upper()}: {e}")
+    
+    result["total"] = result["usdt"] + result["usdc"]
+    result["max_reference"] = 500_000_000
+    
+    _stable_cache = {"data": result, "last": now}
+    return result
+
+
+# ── SLOW: 월가 발언 (Google News RSS) ────────────────
+
+def collect_wallstreet_buzz():
+    """Google News RSS → 주요 금융 인사/기관 발언 자동 수집"""
+    print("  📢 월가 발언…")
+    
+    keywords = [
+        ("Fed Powell", "🏦", "Fed 파월 의장"),
+        ("Fed Waller", "🏦", "Fed 월러 이사"),
+        ("Fed Goolsbee", "🏦", "Fed 굴스비 총재"),
+        ("JPMorgan Dimon", "📊", "JP모건 다이먼 CEO"),
+        ("Goldman Sachs", "💰", "골드만삭스"),
+        ("BlackRock", "🏛️", "블랙록"),
+        ("Elon Musk crypto", "🚀", "일론 머스크"),
+        ("Trump tariff economy", "🏛️", "트럼프 행정부"),
+        ("Treasury Yellen Bessent", "🏦", "미국 재무부"),
+    ]
+    
+    buzz = []
+    
+    for query, emoji, label in keywords[:5]:  # 상위 5개만 (속도)
+        try:
+            q = query.replace(" ", "+")
+            url = f"https://news.google.com/rss/search?q={q}+when:3d&hl=en&gl=US&ceid=US:en"
+            raw = fetch_raw(url, timeout=8)
+            if not raw or "<item>" not in raw:
+                continue
+            
+            # 첫 번째 아이템만 추출
+            item = raw.split("<item>")[1] if "<item>" in raw else ""
+            title_match = re.search(r"<title>(.*?)</title>", item, re.DOTALL)
+            if title_match:
+                title = title_match.group(1).strip()
+                title = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", title)
+                title = title[:120]  # 120자 제한
+                
+                source_match = re.search(r"<source[^>]*>(.*?)</source>", item)
+                source = source_match.group(1) if source_match else ""
+                
+                buzz.append({
+                    "emoji": emoji,
+                    "label": label,
+                    "title": title,
+                    "source": source,
+                })
+                
+            time.sleep(0.2)
+        except Exception as e:
+            continue
+    
+    if buzz:
+        print(f"    ✓ {len(buzz)}건 수집")
+    else:
+        print("    ⚠ 수집 실패")
+    
+    return buzz
+
+
 def collect_whales():
     """고래 알림 수집 — 3단 폴백
     
@@ -810,12 +916,15 @@ def run_once():
         cnn = collect_cnn_fg()
         mvrv = collect_mvrv()
         altseason = collect_altseason()
+        stablecoin = collect_stablecoin_flow()
+        wallstreet = collect_wallstreet_buzz()
         whales, usdt_inflow, usdc_inflow = collect_whales()
 
         _slow_cache = {
             "yahoo": yahoo, "fred": fred, "okx": okx,
             "kimchi": kimchi, "liquidation": liquidation, "war": war,
             "cnn": cnn, "mvrv": mvrv, "altseason": altseason,
+            "stablecoin": stablecoin, "wallstreet": wallstreet,
             "whales": whales, "usdt": usdt_inflow, "usdc": usdc_inflow,
         }
         _last_slow = now
@@ -874,14 +983,14 @@ def run_once():
 
         "whale_alerts": sc.get("whales", []),
 
-        "stablecoin_inflow": {
-            "usdt": usdt,
-            "usdc": usdc,
-            "total": usdt + usdc,
+        "stablecoin_inflow": sc.get("stablecoin") or {
+            "usdt": 0, "usdc": 0, "total": 0,
             "max_reference": 500_000_000,
         },
 
         "altseason": sc.get("altseason") or 50,
+
+        "wallstreet_buzz": sc.get("wallstreet") or [],
 
         "kimchi": sc.get("kimchi") or {
             "premium": 0, "btc_krw": 0,
