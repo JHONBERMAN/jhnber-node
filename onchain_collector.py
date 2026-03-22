@@ -358,34 +358,37 @@ def collect_okx(btc_price):
             out["short_pct"] = 100 - out["long_pct"]
     time.sleep(0.3)
 
-    # CVD (Taker Volume)
-    data = fetch_json("https://www.okx.com/api/v5/rubik/stat/taker-volume?ccy=BTC&instType=CONTRACTS&period=5m")
+    # CVD (Taker Volume) — 24h 기준 순매수/순매도
+    data = fetch_json("https://www.okx.com/api/v5/rubik/stat/taker-volume?ccy=BTC&instType=CONTRACTS&period=1D")
     if data and data.get("data"):
         try:
-            total_buy = sum(safe_float(x[1]) for x in data["data"][:20])
-            total_sell = sum(safe_float(x[2]) for x in data["data"][:20])
-            net = total_buy - total_sell
+            # period=1D → 최근 데이터 포인트가 24h 집계
+            row = data["data"][0]  # 최신 1개
+            total_buy = safe_float(row[1])
+            total_sell = safe_float(row[2])
+            net = total_buy - total_sell  # BTC 단위 순매수
 
             # 체급별 추산 (비율 기반)
-            whale = net * 0.35
-            shark = net * 0.25
-            fish = net * -0.075
-            shrimp = net * -0.105
-            total_usd = round((whale + shark + fish + shrimp) * btc_price)
+            whale_pct, shark_pct, fish_pct, shrimp_pct = 0.45, 0.25, -0.10, -0.10
+            whale = net * whale_pct
+            shark = net * shark_pct
+            fish = net * fish_pct
+            shrimp = net * shrimp_pct
+            net_usd = round(net * btc_price)
 
             if net > 0:
                 analysis = (
                     f'<span style="color:var(--green);font-weight:700;">매수 우세</span>'
-                    f' — ${abs(round(whale * btc_price)) / 1e6:.1f}M 대형매수.'
+                    f' — 24h 순매수 ${abs(net_usd) / 1e6:.1f}M.'
                 )
             else:
                 analysis = (
                     f'<span style="color:var(--red);font-weight:700;">매도 우세</span>'
-                    f' — ${abs(total_usd) / 1e6:.1f}M.'
+                    f' — 24h 순매도 ${abs(net_usd) / 1e6:.1f}M.'
                 )
 
             out["cvd"] = {
-                "total": total_usd,
+                "total": net_usd,
                 "whale": round(whale * btc_price),
                 "shark": round(shark * btc_price),
                 "fish": round(fish * btc_price),
@@ -393,11 +396,12 @@ def collect_okx(btc_price):
                 "buy_volume": round(total_buy * btc_price),
                 "sell_volume": round(total_sell * btc_price),
                 "btc_price": btc_price,
-                "source": "OKX",
+                "source": "OKX 24h",
                 "analysis": analysis,
             }
-        except (IndexError, TypeError):
-            pass
+            print(f"    ✓ CVD: ${net_usd / 1e6:.1f}M ({'매수' if net > 0 else '매도'})")
+        except (IndexError, TypeError) as e:
+            print(f"    ⚠ CVD 파싱 에러: {e}")
 
     return out
 
@@ -562,27 +566,51 @@ def collect_cnn_fg():
 
 # ── SLOW: MVRV Ratio ─────────────────────────────────
 
+# MVRV 24시간 캐시 (하루 1번만 갱신)
+_mvrv_cache = {"value": None, "last": 0}
+
 def collect_mvrv():
-    """Blockchain.com → MVRV Ratio"""
-    print("  📐 MVRV…")
-    data = fetch_json(
-        "https://api.blockchain.info/charts/mvrv?timespan=5weeks&rollingAverage=8hours&format=json"
-    )
-    if data and data.get("values"):
-        try:
-            val = round(data["values"][-1]["y"], 2)
-            if val > 3.5:
-                analysis = f'MVRV <span style="color:var(--red)">{val}</span> — 과열.'
-            elif val > 2.5:
-                analysis = f'MVRV <span style="color:var(--gold)">{val}</span> — 수익구간.'
-            elif val > 1.0:
-                analysis = f'MVRV <span style="color:var(--green)">{val}</span> — 건강.'
-            else:
-                analysis = f'MVRV <span style="color:var(--cyan)">{val}</span> — 저평가!'
-            print(f"    ✓ {val}")
-            return {"value": val, "analysis": analysis}
-        except (IndexError, KeyError):
-            pass
+    """Coinmetrics Community API → MVRV Ratio (무료, 키 불필요)
+    
+    하루 1번만 실제 API 호출, 나머지는 캐시 사용.
+    """
+    global _mvrv_cache
+    now = time.time()
+
+    # 24시간 이내면 캐시 반환
+    if _mvrv_cache["value"] and (now - _mvrv_cache["last"]) < 86400:
+        print(f"  📐 MVRV… (캐시: {_mvrv_cache['value']['value']})")
+        return _mvrv_cache["value"]
+
+    print("  📐 MVRV… (API 갱신)")
+
+    # 1차: Coinmetrics Community API
+    try:
+        url = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics=CapMVRVCur&frequency=1d&page_size=1&sort=desc"
+        data = fetch_json(url)
+        if data and data.get("data"):
+            val = round(safe_float(data["data"][0].get("CapMVRVCur", 0)), 2)
+            if val > 0:
+                if val > 3.5:
+                    analysis = f'MVRV <span style="color:var(--red)">{val}</span> — 🔴 과열. 역사적 고점 구간.'
+                elif val > 2.5:
+                    analysis = f'MVRV <span style="color:var(--gold)">{val}</span> — 🟡 수익구간. 차익실현 주의.'
+                elif val > 1.0:
+                    analysis = f'MVRV <span style="color:var(--green)">{val}</span> — 🟢 건강. 장기 보유 유리.'
+                else:
+                    analysis = f'MVRV <span style="color:var(--cyan)">{val}</span> — 🔵 저평가! 매수 기회.'
+                result = {"value": val, "analysis": analysis}
+                _mvrv_cache = {"value": result, "last": now}
+                print(f"    ✓ MVRV: {val} (Coinmetrics)")
+                return result
+    except Exception as e:
+        print(f"    ⚠ Coinmetrics: {e}")
+
+    # 2차: 캐시가 있으면 그거라도 반환
+    if _mvrv_cache["value"]:
+        print(f"    ⚠ API 실패, 캐시 반환: {_mvrv_cache['value']['value']}")
+        return _mvrv_cache["value"]
+
     return None
 
 

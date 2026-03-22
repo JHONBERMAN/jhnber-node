@@ -993,8 +993,14 @@ async function fetchNews() {
 }
 
 // ═══════════════════════════════════════════════════════
-// INIT — Speed Optimized v6.1
+// INIT — Speed Optimized v6.2 (즉시 렌더)
 // ═══════════════════════════════════════════════════════
+
+// Phase 0: PRELOAD — DOM 빌드와 동시에 API 호출 시작 (가장 빠른 방법)
+// fetch()는 비동기라 DOM 빌드를 블로킹하지 않음
+const _preloadOnchain = fetch(API+'?t='+Date.now()).then(r=>r.json()).catch(()=>null);
+const _preloadCrypto = fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&sparkline=false&price_change_percentage=24h').then(r=>r.json()).catch(()=>null);
+const _preloadFG = fetch('https://api.alternative.me/fng/?limit=7').then(r=>r.json()).catch(()=>null);
 
 // Phase 1: DOM build (synchronous, instant)
 buildNavTabs();
@@ -1103,21 +1109,61 @@ function clearSkeletons() {
   $$('.skeleton-val').forEach(el => el.classList.remove('skeleton-val'));
 }
 
-// Phase 6: Parallel fetch — 5개 API 동시 발사, 각각 독립 완료
-Promise.allSettled([
-  fetchCrypto().then(clearSkeletons),
-  fetchForex(),
-  fetchFearGreed(),
-  fetchOnchainData().then(clearSkeletons),
-  fetchNews(),
-]);
+// Phase 6: Preloaded data 즉시 적용 + 나머지 병렬
+(async function applyPreloads() {
+  // Onchain data (preloaded)
+  try {
+    const data = await _preloadOnchain;
+    if (data) {
+      // fetchOnchainData의 로직을 직접 실행하지 않고, 
+      // 원래 함수에 데이터를 주입하는 대신 간이 적용
+      const m = data.market||{};
+      // BTC
+      if(m.btc_usd){const el=$('ovBtcPrice');if(el){el.textContent='$'+m.btc_usd.toLocaleString();el.classList.remove('skeleton-val');el.className='stat-num '+((m.btc_usd_chg||0)>=0?'up':'down');}}
+      // SPX/NDX/KOSPI
+      [['ovSpx','spx','ovSpxChange','spx_chg'],['ovNdx','ndx','ovNdxChange','ndx_chg'],['ovKospi','kospi','ovKospiChange','kospi_chg']].forEach(([pid,pk,cid,ck])=>{
+        if(m[pk]){const el=$(pid);if(el){el.textContent=m[pk].toLocaleString(undefined,{maximumFractionDigits:0});el.classList.remove('skeleton-val');el.className='stat-num '+((m[ck]||0)>=0?'up':'down');}
+        const ce=$(cid);if(ce){ce.textContent=((m[ck]||0)>=0?'+':'')+(m[ck]||0).toFixed(2)+'%';ce.className='ticker-change '+((m[ck]||0)>=0?'up':'down');}}
+      });
+      console.log('⚡ Preload: onchain applied');
+    }
+  } catch(e) {}
 
-// Phase 7: Auto-refresh intervals
+  // Crypto (preloaded) 
+  try {
+    const raw = await _preloadCrypto;
+    if (raw && raw.length) {
+      const btc = raw.find(c=>c.id==='bitcoin');
+      if(btc){const el=$('ovBtcPrice');if(el&&el.classList.contains('skeleton-val')){el.textContent='$'+btc.current_price.toLocaleString();el.classList.remove('skeleton-val');}}
+      console.log('⚡ Preload: crypto applied');
+    }
+  } catch(e) {}
+
+  // F&G (preloaded)
+  try {
+    const d = await _preloadFG;
+    if (d && d.data) {
+      const val=parseInt(d.data[0].value),grade=getBSGrade(val);
+      if($('ovCryptoFG')){$('ovCryptoFG').textContent=val;$('ovCryptoFG').style.color=grade.color;}
+      if($('ovCryptoFGLabel')){$('ovCryptoFGLabel').textContent=grade.kr;$('ovCryptoFGLabel').style.color=grade.color;$('ovCryptoFGLabel').classList.remove('loading-pulse');}
+      console.log('⚡ Preload: F&G applied');
+    }
+  } catch(e) {}
+
+  clearSkeletons();
+})();
+
+// Phase 7: Full fetch (preload 이후 전체 데이터 갱신)
+setTimeout(() => {
+  Promise.allSettled([fetchCrypto(), fetchForex(), fetchFearGreed(), fetchOnchainData(), fetchNews()]);
+}, 500); // preload 적용 후 0.5초 뒤 full fetch
+
+// Phase 8: Auto-refresh intervals
 setInterval(fetchCrypto, 30000);
 setInterval(fetchForex, 60000);
 setInterval(fetchFearGreed, 300000);
 setInterval(fetchOnchainData, 60000);
-setInterval(fetchNews, 300000); // 뉴스 5분마다
+setInterval(fetchNews, 300000);
 </script>
 </body>
 </html>
