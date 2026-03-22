@@ -741,6 +741,127 @@ def collect_wallstreet_buzz():
     return buzz
 
 
+# ── SLOW: X 속보 (Twitter/X RSS) ─────────────────────
+
+X_ACCOUNTS = [
+    ("Reuters", "Reuters", "🌐"),
+    ("DeItaone", "WalterBloomberg", "⚡"),
+    ("zaborhedge", "ZeroHedge", "📉"),
+    ("unusual_whales", "Unusual Whales", "🐋"),
+    ("MacroAlf", "MacroAlf", "📊"),
+    ("business", "Bloomberg", "💼"),
+]
+
+# RSSHub 공개 인스턴스 (여러 개 시도)
+RSSHUB_INSTANCES = [
+    "https://rsshub.app",
+    "https://rsshub.rssforever.com",
+    "https://rsshub-instance.zeabur.app",
+]
+
+# Nitter 인스턴스 (폴백)
+NITTER_INSTANCES = [
+    "https://nitter.net",
+    "https://nitter.privacydev.net",
+    "https://nitter.poast.org",
+]
+
+
+def collect_x_feed():
+    """X(Twitter) 주요 계정 속보 수집 — RSSHub → Nitter 폴백"""
+    print("  📱 X 속보…")
+    all_posts = []
+
+    for handle, display_name, emoji in X_ACCOUNTS:
+        fetched = False
+
+        # 1차: RSSHub
+        for base in RSSHUB_INSTANCES:
+            url = f"{base}/twitter/user/{handle}"
+            raw = fetch_raw(url, timeout=8)
+            if raw and "<item>" in raw:
+                posts = _parse_rss_items(raw, handle, display_name, emoji)
+                if posts:
+                    all_posts.extend(posts)
+                    fetched = True
+                    break
+
+        if fetched:
+            continue
+
+        # 2차: Nitter
+        for base in NITTER_INSTANCES:
+            url = f"{base}/{handle}/rss"
+            raw = fetch_raw(url, timeout=8)
+            if raw and "<item>" in raw:
+                posts = _parse_rss_items(raw, handle, display_name, emoji)
+                if posts:
+                    all_posts.extend(posts)
+                    break
+
+        time.sleep(0.3)
+
+    # 시간순 정렬, 최대 20개
+    all_posts.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+    result = all_posts[:20]
+    print(f"    ✓ X 속보: {len(result)}건 ({len(X_ACCOUNTS)}계정)")
+    return result
+
+
+def _parse_rss_items(raw, handle, display_name, emoji, max_items=5):
+    """RSS XML에서 트윗 파싱"""
+    posts = []
+    items = raw.split("<item>")[1:max_items + 1]
+    now_ts = int(time.time())
+
+    for item in items:
+        # 제목/본문 추출
+        title = ""
+        t_match = re.search(r"<title>(.*?)</title>", item, re.DOTALL)
+        if t_match:
+            title = t_match.group(1).strip()
+            title = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", title)
+            # HTML 태그 제거
+            title = re.sub(r"<[^>]+>", "", title)
+            # RT @user: 제거
+            title = re.sub(r"^R?T @\w+:?\s*", "", title)
+            title = title.strip()[:200]
+
+        if not title or len(title) < 10:
+            continue
+
+        # 링크
+        link = ""
+        l_match = re.search(r"<link>(.*?)</link>", item)
+        if l_match:
+            link = l_match.group(1).strip()
+
+        # 타임스탬프
+        ts = now_ts
+        pub_match = re.search(r"<pubDate>(.*?)</pubDate>", item)
+        if pub_match:
+            try:
+                from email.utils import parsedate_to_datetime
+                ts = int(parsedate_to_datetime(pub_match.group(1)).timestamp())
+            except Exception:
+                pass
+
+        # 24시간 이상 지난 건 제외
+        if now_ts - ts > 86400:
+            continue
+
+        posts.append({
+            "handle": f"@{handle}",
+            "name": display_name,
+            "emoji": emoji,
+            "text": title,
+            "link": link,
+            "timestamp": ts,
+        })
+
+    return posts
+
+
 def collect_whales():
     """고래 알림 수집 — 3단 폴백
     
@@ -918,6 +1039,7 @@ def run_once():
         altseason = collect_altseason()
         stablecoin = collect_stablecoin_flow()
         wallstreet = collect_wallstreet_buzz()
+        x_feed = collect_x_feed()
         whales, usdt_inflow, usdc_inflow = collect_whales()
 
         _slow_cache = {
@@ -925,6 +1047,7 @@ def run_once():
             "kimchi": kimchi, "liquidation": liquidation, "war": war,
             "cnn": cnn, "mvrv": mvrv, "altseason": altseason,
             "stablecoin": stablecoin, "wallstreet": wallstreet,
+            "x_feed": x_feed,
             "whales": whales, "usdt": usdt_inflow, "usdc": usdc_inflow,
         }
         _last_slow = now
@@ -991,6 +1114,8 @@ def run_once():
         "altseason": sc.get("altseason") or 50,
 
         "wallstreet_buzz": sc.get("wallstreet") or [],
+
+        "x_feed": sc.get("x_feed") or [],
 
         "kimchi": sc.get("kimchi") or {
             "premium": 0, "btc_krw": 0,

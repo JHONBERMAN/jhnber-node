@@ -586,7 +586,7 @@ function buildMarket() {
 }
 
 function buildEcon() { return P('econ') + `<div class="card section-gap">${CT(ICONS.cal,'경제 캘린더 — 인베스팅닷컴 기준')}<div id="econCalendar" style="padding:4px 0"></div></div>` + EP(); }
-function buildNews() { return P('news') + `<div class="card section-gap">${CT(ICONS.news,'실시간 경제 뉴스',TS('newsUpdated'))}<div class="topic-chips" style="margin-bottom:16px"><div class="chip active" onclick="filterNews(this,'all')">전체</div><div class="chip" onclick="filterNews(this,'macro')">매크로</div><div class="chip" onclick="filterNews(this,'market')">마켓</div><div class="chip" onclick="filterNews(this,'tech')">테크</div></div><div id="newsList" style="display:flex;flex-direction:column;gap:0"><div style="padding:30px;text-align:center;color:var(--text2);font-size:12px">뉴스를 불러오는 중...</div></div></div>` + EP(); }
+function buildNews() { return P('news') + `<div class="card section-gap">${CT(ICONS.news,'실시간 경제 뉴스',TS('newsUpdated'))}<div class="topic-chips" style="margin-bottom:16px"><div class="chip active" onclick="filterNews(this,'all')">전체</div><div class="chip" onclick="filterNews(this,'xfeed')">속보</div><div class="chip" onclick="filterNews(this,'crypto')">크립토</div><div class="chip" onclick="filterNews(this,'macro')">매크로</div><div class="chip" onclick="filterNews(this,'market')">마켓</div><div class="chip" onclick="filterNews(this,'tech')">테크</div></div><div id="newsList" style="display:flex;flex-direction:column;gap:0"><div style="padding:30px;text-align:center;color:var(--text2);font-size:12px">뉴스를 불러오는 중...</div></div></div>` + EP(); }
 
 function buildFear() {
   const arcSvg = (id,gradId) => `<svg viewBox="0 0 200 120" width="200" height="120"><defs><linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" style="stop-color:#ff4444"/><stop offset="25%" style="stop-color:#ff8844"/><stop offset="50%" style="stop-color:#ffdd32"/><stop offset="75%" style="stop-color:#88dd44"/><stop offset="100%" style="stop-color:#00ff88"/></linearGradient></defs><path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="16" stroke-linecap="round"/><path id="${id}Arc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#${gradId})" stroke-width="16" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="200"/><text id="${id}Num" x="100" y="88" text-anchor="middle" font-size="38" font-weight="700" fill="white" font-family="monospace">--</text><text id="${id}Label" x="100" y="108" text-anchor="middle" font-size="12" fill="#ffdd32">로딩중...</text><text x="16" y="118" font-size="8" fill="#ff4444">극도공포</text><text x="144" y="118" font-size="8" fill="#00ff88">극도탐욕</text></svg>`;
@@ -858,12 +858,45 @@ async function fetchOnchainData() {
     // Timestamps — data.json의 last_updated를 서버 수집 시각으로 사용
     const serverTime = data.last_updated ? new Date(data.last_updated) : new Date();
     ['stockUpdated','commodityUpdated','m7Updated','cvdUpdated','kimchiUpdated','liqUpdated','warUpdated','mvrvUpdated','whaleUpdated'].forEach(id=>ts(id, serverTime));
-    // Wall Street Buzz 자동 업데이트
+    // Wall Street Buzz 자동 업데이트 + 번역
     if(data.wallstreet_buzz&&data.wallstreet_buzz.length){
       const ws=$('wallStreetBuzz');
-      if(ws) ws.innerHTML=data.wallstreet_buzz.map(b=>
-        `<div class="signal-row"><div style="font-size:14px;width:22px;text-align:center">${b.emoji}</div><div class="signal-text"><div style="color:var(--text);font-size:13px;margin-bottom:2px">${b.label}</div><div style="font-size:12px">${b.title}${b.source?' — <span style="color:var(--gold)">'+b.source+'</span>':''}</div></div></div>`
-      ).join('');
+      if(ws) {
+        Promise.all(data.wallstreet_buzz.map(async b => {
+          b.title = await translateToKo(b.title);
+          return b;
+        })).then(items => {
+          ws.innerHTML=items.map(b=>
+            `<div class="signal-row"><div style="font-size:14px;width:22px;text-align:center">${b.emoji}</div><div class="signal-text"><div style="color:var(--text);font-size:13px;margin-bottom:2px">${b.label}</div><div style="font-size:12px">${b.title}${b.source?' — <span style="color:var(--gold)">'+b.source+'</span>':''}</div></div></div>`
+          ).join('');
+        });
+      }
+    }
+    // X 속보 → 뉴스 리스트에 주입
+    if(data.x_feed&&data.x_feed.length){
+      const nl=$('newsList');
+      if(nl){
+        // 번역 후 기존 뉴스 하단에 추가
+        Promise.all(data.x_feed.map(async p => {
+          p.text = await translateToKo(p.text);
+          return p;
+        })).then(posts => {
+          const xHtml = posts.map(p => {
+            const ago = Math.floor((Date.now()/1000 - p.timestamp) / 60);
+            const timeStr = ago < 60 ? ago+'분 전' : ago < 1440 ? Math.floor(ago/60)+'시간 전' : Math.floor(ago/1440)+'일 전';
+            return `<div class="news-item" data-cat="xfeed">
+              <div class="news-title"><a href="${p.link||'#'}" target="_blank" rel="noopener">${p.emoji} ${p.text}</a></div>
+              <div class="news-meta">
+                <span class="news-tag" style="border-color:var(--red);color:var(--red)">속보</span>
+                <span class="news-source">${p.handle}</span>
+                <span class="news-time">${timeStr}</span>
+              </div>
+            </div>`;
+          }).join('');
+          // 기존 뉴스 뒤에 추가
+          nl.insertAdjacentHTML('beforeend', xHtml);
+        });
+      }
     }
   } catch(e) {
     console.warn('data.json:',e);
@@ -939,56 +972,95 @@ window.filterNews = function(el, cat) {
   });
 };
 
-// ── News: Google News RSS (CORS proxy-free via allorigins) ──
+// ── Translation: Google Translate 간이 번역 ──
+async function translateToKo(text) {
+  if (!text || /[가-힣]/.test(text)) return text; // 이미 한글이면 패스
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ko&dt=t&q=${encodeURIComponent(text.slice(0,400))}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data[0].map(s=>s[0]).join('') || text;
+  } catch(e) { return text; }
+}
+
+// ── News: 확장 소스 (크립토 + 매크로 + 마켓) ──
 const NEWS_FEEDS = [
-  {url:'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko', cat:'macro', label:'매크로'},
-  {url:'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtdHZHZ0pMVWlnQVAB/sections/CAQiS0NCQVNMZ29JTDIwdk1EbHpNV1lTQW10dkdnSkxVaUlPQ0FRYUNnb0lMMjB2TURGNk1CSXFFRHNLQ2t4UVUxTXRNa1JhVGtsTVVnLkFKUkVTUDFn?hl=ko&gl=KR&ceid=KR:ko', cat:'market', label:'마켓'},
-  {url:'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGRqTVhZU0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko', cat:'tech', label:'테크'},
+  // 크립토
+  {url:'https://cointelegraph.com/rss', cat:'crypto', label:'크립토', direct:true},
+  {url:'https://www.coindesk.com/arc/outboundfeeds/rss/', cat:'crypto', label:'크립토', direct:true},
+  {url:'https://investing.com/rss/news_301.rss', cat:'crypto', label:'크립토', direct:true},
+  // 매크로
+  {url:'https://news.google.com/rss/search?q=economy+fed+inflation+when:2d&hl=en&gl=US&ceid=US:en', cat:'macro', label:'매크로'},
+  {url:'https://news.google.com/rss/search?q=reuters+bloomberg+economy+when:2d&hl=en&gl=US&ceid=US:en', cat:'macro', label:'매크로'},
+  // 마켓
+  {url:'https://news.google.com/rss/search?q=stock+market+S%26P500+nasdaq+when:2d&hl=en&gl=US&ceid=US:en', cat:'market', label:'마켓'},
+  // 테크
+  {url:'https://news.google.com/rss/search?q=AI+tech+semiconductor+when:2d&hl=en&gl=US&ceid=US:en', cat:'tech', label:'테크'},
 ];
 
 async function fetchNews() {
   const allNews = [];
+  const PROXY = 'https://api.allorigins.win/raw?url=';
+
   for (const feed of NEWS_FEEDS) {
     try {
-      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(feed.url);
-      const res = await fetch(proxyUrl);
+      const fetchUrl = feed.direct ? PROXY + encodeURIComponent(feed.url) : PROXY + encodeURIComponent(feed.url);
+      const res = await fetch(fetchUrl, {signal: AbortSignal.timeout(8000)});
       const text = await res.text();
       const parser = new DOMParser();
       const xml = parser.parseFromString(text, 'text/xml');
       const items = xml.querySelectorAll('item');
-      items.forEach((item, i) => {
-        if (i >= 8) return; // 카테고리별 최대 8개
-        const title = item.querySelector('title')?.textContent || '';
+      let count = 0;
+      items.forEach((item) => {
+        if (count >= 5) return;
+        const title = (item.querySelector('title')?.textContent || '').replace(/<!\[CDATA\[(.*?)\]\]>/g,'$1').trim();
         const link = item.querySelector('link')?.textContent || '#';
         const pubDate = item.querySelector('pubDate')?.textContent || '';
         const source = item.querySelector('source')?.textContent || '';
-        // 시간 파싱
+        if (!title || title.length < 10) return;
         let timeStr = '';
         if (pubDate) {
           const d = new Date(pubDate);
           const diff = Math.floor((Date.now() - d.getTime()) / 60000);
+          if (diff < 0 || diff > 10080) return; // 7일 이상 된 건 제외
           if (diff < 60) timeStr = diff + '분 전';
           else if (diff < 1440) timeStr = Math.floor(diff / 60) + '시간 전';
           else timeStr = Math.floor(diff / 1440) + '일 전';
         }
         allNews.push({title, link, source, timeStr, cat: feed.cat, label: feed.label, date: new Date(pubDate || Date.now())});
+        count++;
       });
-    } catch(e) { console.warn('News fetch:', feed.cat, e); }
+    } catch(e) { /* silently skip failed feeds */ }
   }
-  // 시간순 정렬
+
+  // 시간순 정렬 + 중복 제거
   allNews.sort((a, b) => b.date - a.date);
+  const seen = new Set();
+  const unique = allNews.filter(n => {
+    const key = n.title.slice(0,40).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 25);
+
+  // 번역 (상위 25개만)
+  const translated = await Promise.all(unique.map(async n => {
+    n.title = await translateToKo(n.title);
+    return n;
+  }));
 
   const nl = $('newsList');
   if (nl) {
-    if (allNews.length === 0) {
+    if (translated.length === 0) {
       nl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text2);font-size:12px">뉴스를 불러올 수 없습니다.</div>';
     } else {
-      nl.innerHTML = allNews.slice(0, 20).map(n => {
-        const catColor = n.cat === 'macro' ? 'var(--gold)' : n.cat === 'market' ? 'var(--cyan)' : 'var(--purple2)';
+      const catColors = {crypto:'var(--green)',macro:'var(--gold)',market:'var(--cyan)',tech:'var(--purple2)'};
+      nl.innerHTML = translated.map(n => {
+        const cc = catColors[n.cat] || 'var(--text2)';
         return `<div class="news-item" data-cat="${n.cat}">
           <div class="news-title"><a href="${n.link}" target="_blank" rel="noopener">${n.title}</a></div>
           <div class="news-meta">
-            <span class="news-tag" style="border-color:${catColor};color:${catColor}">${n.label}</span>
+            <span class="news-tag" style="border-color:${cc};color:${cc}">${n.label}</span>
             ${n.source ? `<span class="news-source">${n.source}</span>` : ''}
             <span class="news-time">${n.timeStr}</span>
           </div>
