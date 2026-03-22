@@ -196,6 +196,16 @@ h1{font-family:'Cinzel Decorative',serif;font-size:clamp(24px,4vw,48px);backgrou
 .news-tag{font-size:9px;padding:2px 6px;border-radius:3px;border:1px solid var(--border);color:var(--text2);letter-spacing:.5px}
 
 .disclaimer{text-align:center;font-size:10px;color:rgba(144,144,176,.4);padding:20px;letter-spacing:1px}
+
+/* ── Visitor Counter Bar ── */
+.visitor-bar{position:relative;z-index:1;margin:0 auto;max-width:1400px;padding:0 20px 30px}
+.visitor-inner{display:flex;align-items:center;justify-content:center;gap:16px;padding:12px 24px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.12);border-radius:8px;font-family:'Space Mono',monospace;font-size:11px}
+.visitor-item{display:flex;align-items:center;gap:6px}
+.visitor-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.visitor-dot.live{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+.visitor-label{color:var(--text2);letter-spacing:2px;font-size:10px}
+.visitor-num{color:var(--gold);font-weight:700;font-size:14px}
+.visitor-sep{color:rgba(201,168,76,.2);font-size:10px}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
@@ -309,6 +319,32 @@ h1{font-family:'Cinzel Decorative',serif;font-size:clamp(24px,4vw,48px);backgrou
     ⚠ 본 사이트의 모든 정보는 오락 및 참고 목적입니다. 투자 결정의 근거로 사용하지 마세요.<br>
     점성술 해석은 엔터테인먼트 목적이며, 금융 조언이 아닙니다. · X-INTELLIGENCE : JHONBER — NODE © 2026
   </div>
+
+  <!-- ═══ LIVE VISITOR COUNTER ═══ -->
+  <div class="visitor-bar" id="visitorBar">
+    <div class="visitor-inner">
+      <div class="visitor-item">
+        <span class="visitor-dot live"></span>
+        <span class="visitor-label">LIVE</span>
+        <span class="visitor-num" id="visitorActive">-</span>
+      </div>
+      <div class="visitor-sep">│</div>
+      <div class="visitor-item">
+        <span class="visitor-label">TODAY</span>
+        <span class="visitor-num" id="visitorToday">-</span>
+      </div>
+      <div class="visitor-sep">│</div>
+      <div class="visitor-item">
+        <span class="visitor-label">PEAK</span>
+        <span class="visitor-num" id="visitorPeak">-</span>
+      </div>
+      <div class="visitor-sep">│</div>
+      <div class="visitor-item">
+        <span class="visitor-label">TOTAL</span>
+        <span class="visitor-num" id="visitorTotal">-</span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -317,6 +353,7 @@ h1{font-family:'Cinzel Decorative',serif;font-size:clamp(24px,4vw,48px);backgrou
    ═══════════════════════════════════════════════════════ */
 
 const API = 'https://jhnber-node-production.up.railway.app/data.json';
+const API_BASE = 'https://jhnber-node-production.up.railway.app';
 const $ = id => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
 
@@ -638,7 +675,8 @@ function buildWarIndex() {
   <div class="grid-2 section-gap">
     <div class="card">${CT(ICONS.shield,'전쟁지수 × 안전자산 상관관계')}<div style="font-size:12px;color:var(--text2);line-height:1.9;padding:8px 0">전쟁 긴장 지수 산출: <span style="color:var(--gold)">뉴스 헤드라인 빈도</span> + <span style="color:var(--cyan)">유가 변동률</span> + <span style="color:var(--green)">금값 변동률</span> + <span style="color:var(--purple2)">VIX 스파이크</span> 가중 합산.<br>지수 80+ 시: <span style="color:var(--red)">안전자산 긴급 이동</span> 권장. 역사적으로 80+ 진입 후 14일 내 S&P -3.2% 조정.</div></div>
     <div class="card">${CT(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M12 2L2 22h20L12 2z"/><circle cx="10" cy="14" r="1" fill="var(--gold)"/><circle cx="14" cy="16" r="1" fill="var(--gold)"/></svg>`,'PENTAGON PIZZA INDEX')}<div style="padding:8px 0"><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><div style="font-size:28px">🍕</div><div><div style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--gold)" id="pizzaIndex">ELEVATED</div><div style="font-size:12px;color:var(--text2)">미 국방부 주변 피자 배달 주문량 지수</div></div></div><div style="font-size:14px;color:var(--text2);line-height:2.1">펜타곤 인근 피자 배달 주문량이 급증하면 야근·비상근무 증가 → 군사 작전 임박 시그널. 1991년 걸프전, 2003년 이라크 침공 직전 피자 주문 급증 관측.<br><span style="color:var(--gold)">현재 상태</span>: 정상 범위.</div></div></div>
-  </div>` + EP();
+  </div>
+  <div class="card section-gap">${CT(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M2 20h20M5 20V8l3-4h8l3 4v12"/><path d="M9 20v-6h6v6"/></svg>`,'CDS SPREAD — 국가 부도 위험 지표',TS('cdsUpdated'))}<div style="padding:8px 0"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px" id="cdsGrid"></div><div style="margin-top:10px;padding:10px;background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.12);border-radius:6px;font-size:14px;color:var(--text2);line-height:2.1" id="cdsSignal">CDS(Credit Default Swap) 스프레드 = 국가 부도 보험료. 높을수록 위험. 급등 시 해당 국가 자산 회피, 안전자산 수요 증가.</div></div></div>` + EP();
 }
 
 function buildLiquidity() {
@@ -853,12 +891,22 @@ async function fetchOnchainData() {
     // CVD
     if(data.cvd){const c=data.cvd;if($('cvdValue')){const t=c.total;$('cvdValue').textContent=(t>=0?'+':'')+'$'+(Math.abs(t)/1e6).toFixed(1)+'M';$('cvdValue').style.color=t>=0?'var(--green)':'var(--red)';}if($('cvdGauge'))$('cvdGauge').style.width=Math.max(5,Math.min(95,50+(c.total/(c.buy_volume||1))*200))+'%';const mx=Math.max(Math.abs(c.whale||0),Math.abs(c.shark||0),Math.abs(c.fish||0),Math.abs(c.shrimp||0),1);[['cvdWhale','cvdWhaleVal',c.whale||0],['cvdShark','cvdSharkVal',c.shark||0],['cvdFish','cvdFishVal',c.fish||0],['cvdShrimp','cvdShrimpVal',c.shrimp||0]].forEach(([bId,vId,val])=>{const b=$(bId),v=$(vId);if(b){b.style.width=Math.max(5,50+(val/mx)*45)+'%';b.style.background=val>=0?'var(--green)':'var(--red)';}if(v){v.textContent=(val>=0?'+':'')+'$'+(Math.abs(val)/1e6).toFixed(0)+'M';v.style.color=val>=0?'var(--green)':'var(--red)';}});if($('cvdWhaleSignal')&&c.analysis)$('cvdWhaleSignal').innerHTML=c.analysis;}
     // War
-    if(data.war_index){const wv=data.war_index.value||48;if($('warArc'))$('warArc').setAttribute('stroke-dashoffset',251-(wv/100*251));if($('warNum')){$('warNum').textContent=wv;$('warNum').setAttribute('fill',wv>=61?'#ff4444':wv>=31?'#c9a84c':'#00ff88');}if($('warLabel'))$('warLabel').textContent=data.war_index.label||(wv>=80?'CRITICAL':wv>=61?'HIGH RISK':wv>=31?'ELEVATED':'STABLE');}
+    if(data.war_index){const wv=data.war_index.value||48;if($('warArc'))$('warArc').setAttribute('stroke-dashoffset',251-(wv/100*251));if($('warNum')){$('warNum').textContent=wv;$('warNum').setAttribute('fill',wv>=61?'#ff4444':wv>=31?'#c9a84c':'#00ff88');}if($('warLabel'))$('warLabel').textContent=data.war_index.label||(wv>=80?'CRITICAL':wv>=61?'HIGH RISK':wv>=31?'ELEVATED':'STABLE');
+    // 핫스팟 자동 렌더링
+    if(data.war_index.hotspots&&data.war_index.hotspots.length){const wh=$('warHotspots');if(wh)wh.innerHTML=data.war_index.hotspots.map(h=>{const c=h.colors||'green,green';const cs=c.split(',');const w=Math.max(6,Math.min(40,h.score*0.4));const lc=h.level==='CRITICAL'?'var(--red)':h.level==='HIGH'?'var(--gold)':'var(--text2)';return `<div class="signal-row"><div style="font-size:14px;width:22px">${h.emoji}</div><div class="signal-text"><div style="color:var(--text);font-size:12px">${h.name} <span style="font-family:'Space Mono',monospace;font-size:9px;color:${lc};border:1px solid ${lc};border-radius:3px;padding:1px 4px;margin-left:4px">${h.level} ${h.score}</span></div><div style="font-size:11px">${h.description}</div></div><div style="width:40px;text-align:right"><div style="width:${w}px;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--${cs[0]}),var(--${cs[1]}));margin-left:auto"></div></div></div>`;}).join('');}
+    // 시그널 분석 자동 생성
+    if(data.war_index.top_keywords&&$('warSignal')){const tk=data.war_index.top_keywords.slice(0,5).map(k=>k.keyword).join(', ');const gs=data.war_index.global_score||0;const ha=data.war_index.hotspot_avg||0;$('warSignal').innerHTML=`<span style="color:var(--gold)">복합지수 ${wv}</span> (글로벌 ${gs} + 핫스팟 평균 ${ha})<br>${wv>=80?'<span style="color:var(--red)">🔴 CRITICAL — 안전자산(금/채권) 긴급 이동 권장. 리스크 자산 최소화.</span>':wv>=60?'<span style="color:var(--gold)">🟡 HIGH RISK — 리스크 자산 축소 고려. 유가/금 변동 주시.</span>':wv>=30?'주요 핫스팟 모니터링 유지. 급변 시 안전자산 비중 확대 준비.':'안정 구간. 정상 포트폴리오 운용.'}${tk?`<br><span style="font-size:11px;color:var(--text2)">탐지 키워드: ${tk}</span>`:''}`;}
+    }
     // Liquidation
     if(data.liquidation){const lq=data.liquidation;if($('liqPriceTop'))$('liqPriceTop').textContent='$'+lq.price_high.toLocaleString();if($('liqPriceMid'))$('liqPriceMid').textContent='$'+lq.current_price.toLocaleString();if($('liqPriceBot'))$('liqPriceBot').textContent='$'+lq.price_low.toLocaleString();if($('liqCurrentPrice'))$('liqCurrentPrice').textContent='$'+lq.current_price.toLocaleString();if($('liqLongZone')&&lq.long_liq_zone)$('liqLongZone').textContent=lq.long_liq_zone.description+' 구간에 롱 청산 밀집.';if($('liqShortZone')&&lq.short_liq_zone)$('liqShortZone').textContent=lq.short_liq_zone.description+' 구간에 쇼트 청산 밀집.';if($('liqMagnet'))$('liqMagnet').textContent='$'+lq.magnet_price.toLocaleString()+' — 고래 타겟 가격.';renderLiqBars(lq);}
     // CNN real data
     if(data.cnn_fear_greed){const cfg=data.cnn_fear_greed,s=cfg.score,g=getBSGrade(s);if($('ovCnnFG')){$('ovCnnFG').textContent=s;$('ovCnnFG').style.color=g.color;}if($('ovCnnFGLabel')){$('ovCnnFGLabel').textContent=g.kr;$('ovCnnFGLabel').style.color=g.color;$('ovCnnFGLabel').classList.remove('loading-pulse');}if($('cnnArc'))$('cnnArc').setAttribute('stroke-dashoffset',251-(s/100*251));if($('cnnNum')){$('cnnNum').textContent=s;$('cnnNum').setAttribute('fill',g.color);}if($('cnnLabel')){$('cnnLabel').textContent=g.kr;$('cnnLabel').setAttribute('fill',g.color);}}
-    // Timestamps — data.json의 last_updated를 서버 수집 시각으로 사용
+    // Correlation Matrix 자동 렌더링
+    if(data.correlation&&data.correlation.pairs){const cm=$('corrMatrix');if(cm){cm.innerHTML=data.correlation.pairs.map(p=>`<div style="padding:10px;background:rgba(${p.color},.06);border:1px solid rgba(${p.color},.12);border-radius:6px;text-align:center"><div style="font-size:12px;color:var(--text2);margin-bottom:4px">${p.label}</div><div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:rgba(${p.color},1)">${p.value}</div><div style="font-size:11px;color:var(--text2);margin-top:2px">${p.desc}</div></div>`).join('');}
+    // 해석 텍스트 업데이트
+    const ca=cm?.parentElement?.querySelector('[style*="margin-top:10px"]');if(ca&&data.correlation.analysis){ca.innerHTML=`<span style="color:var(--gold)">해석</span>: ${data.correlation.analysis}<br><span style="font-size:9px;margin-top:4px;color:var(--text2)">* ${data.correlation.period||'90일'} 롤링 피어슨 상관계수 · 자동 계산</span>`;}}
+    // CDS 자동 렌더링
+    if(data.cds&&data.cds.countries){const cg=$('cdsGrid');if(cg)cg.innerHTML=data.cds.countries.map(c=>{const rc=c.risk==='CRITICAL'?'255,68,68':c.risk==='ELEVATED'?'201,168,76':'0,255,136';return `<div style="padding:10px;background:rgba(${rc},.06);border:1px solid rgba(${rc},.12);border-radius:6px;text-align:center"><div style="font-size:12px;color:var(--text2);margin-bottom:4px">${c.emoji} ${c.name}</div><div style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:rgba(${rc},1)">${c.spread_5y} bp</div><div style="font-size:10px;color:var(--text2);margin-top:2px">5Y CDS · ${c.risk}${c.fallback?' (추정)':''}</div></div>`;}).join('');if($('cdsSignal')&&data.cds.signal)$('cdsSignal').innerHTML=data.cds.signal+`<br><span style="font-size:11px;color:var(--text2)">평균 위험비율: ${data.cds.avg_ratio}x</span>`;const st=data.last_updated?new Date(data.last_updated):new Date();if($('cdsUpdated'))ts('cdsUpdated',st);}
     const serverTime = data.last_updated ? new Date(data.last_updated) : new Date();
     ['stockUpdated','commodityUpdated','m7Updated','cvdUpdated','kimchiUpdated','liqUpdated','warUpdated','mvrvUpdated','whaleUpdated'].forEach(id=>ts(id, serverTime));
     // 천체 데이터 자동 업데이트
@@ -928,16 +976,26 @@ function renderLiqBars(data) {
 }
 
 // ── Calendar & Events ──
-function buildCalendar() {
+async function buildCalendar() {
   const today=new Date(); today.setHours(0,0,0,0);
   // Moon events
   const moons=[{date:'2026-03-29',type:'🌑',label:'신월 (양자리)',mk:'새 사이클 시작'},{date:'2026-04-12',type:'🌕',label:'보름달 (천칭자리)',mk:'변동성 확대'},{date:'2026-04-28',type:'🌑',label:'신월 (황소자리)',mk:'재물 섹터 주목'},{date:'2026-05-12',type:'🌕',label:'보름달 (전갈자리)',mk:'반전 가능성'},{date:'2026-05-26',type:'🌑',label:'신월 (쌍둥이자리)',mk:'기술 섹터'},{date:'2026-06-11',type:'🌕',label:'보름달 (사수자리)',mk:'글로벌 매크로 주의'},{date:'2026-08-12',type:'🌘',label:'월식 (물병자리)',mk:'기술 혁신 전환점'}];
   const me=$('moonEvents');
   if(me) me.innerHTML=moons.map(e=>{const d=new Date(e.date),diff=Math.ceil((d-today)/864e5),past=diff<0;return `<div class="signal-row" style="${past?'opacity:.4':''}"><div style="font-size:20px;width:28px">${e.type}</div><div class="signal-text"><div style="color:var(--text);font-size:12px;margin-bottom:2px">${e.label} <span style="font-family:monospace;color:var(--text2);font-size:10px">${e.date}</span></div><div style="font-size:11px">${e.mk}</div></div>${past?'<span style="color:var(--text2);font-size:10px">완료</span>':diff===0?'<span style="color:var(--green);font-size:10px">오늘</span>':`<span style="color:var(--cyan);font-size:10px">D-${diff}</span>`}</div>`;}).join('');
   // Econ calendar
-  const econs=[{d:'2026-03-25',l:'미국 CB 소비자신뢰지수',i:'mid',desc:'🐂🐂',c:'🇺🇸'},{d:'2026-03-27',l:'미국 4분기 GDP (확정치)',i:'high',desc:'🐂🐂🐂',c:'🇺🇸'},{d:'2026-03-28',l:'미국 핵심 PCE 물가지수',i:'high',desc:'Fed 선호 인플레이션 🐂🐂🐂',c:'🇺🇸'},{d:'2026-04-01',l:'미국 ISM 제조업 PMI',i:'high',desc:'🐂🐂🐂',c:'🇺🇸'},{d:'2026-04-03',l:'미국 비농업 고용 (3월)',i:'high',desc:'NFP 🐂🐂🐂',c:'🇺🇸'},{d:'2026-04-10',l:'미국 CPI (3월)',i:'high',desc:'근원 CPI 주목 🐂🐂🐂',c:'🇺🇸'},{d:'2026-04-15',l:'중국 GDP (1분기)',i:'high',desc:'🐂🐂🐂',c:'🇨🇳'},{d:'2026-04-16',l:'ECB 금리 결정',i:'high',desc:'🐂🐂🐂',c:'🇪🇺'},{d:'2026-04-29',l:'미국 GDP 예비치',i:'high',desc:'🐂🐂🐂',c:'🇺🇸'},{d:'2026-04-30',l:'일본 BOJ 금리 결정',i:'high',desc:'🐂🐂🐂',c:'🇯🇵'},{d:'2026-05-06',l:'FOMC 금리 결정 (5월)',i:'high',desc:'🐂🐂🐂',c:'🇺🇸'},{d:'2026-05-13',l:'미국 CPI (4월)',i:'high',desc:'🐂🐂🐂',c:'🇺🇸'},{d:'2026-06-05',l:'미국 비농업 고용 (5월)',i:'high',desc:'🐂🐂🐂',c:'🇺🇸'},{d:'2026-06-17',l:'FOMC 금리 결정 (6월)',i:'high',desc:'🐂🐂🐂',c:'🇺🇸'}];
+  // Econ calendar — data.json 우선, 폴백은 하드코딩
+  const econsFallback=[{d:'2026-03-25',l:'미국 CB 소비자신뢰지수',i:'mid',c:'🇺🇸'},{d:'2026-03-27',l:'미국 4분기 GDP (확정치)',i:'high',c:'🇺🇸'},{d:'2026-03-28',l:'미국 핵심 PCE 물가지수',i:'high',c:'🇺🇸'},{d:'2026-04-01',l:'미국 ISM 제조업 PMI',i:'high',c:'🇺🇸'},{d:'2026-04-03',l:'미국 비농업 고용 (3월)',i:'high',c:'🇺🇸'},{d:'2026-04-10',l:'미국 CPI (3월)',i:'high',c:'🇺🇸'},{d:'2026-04-15',l:'중국 GDP (1분기)',i:'high',c:'🇨🇳'},{d:'2026-04-16',l:'ECB 금리 결정',i:'high',c:'🇪🇺'},{d:'2026-05-06',l:'FOMC 금리 결정 (5월)',i:'high',c:'🇺🇸'},{d:'2026-06-17',l:'FOMC 금리 결정 (6월)',i:'high',c:'🇺🇸'}];
+  // data.json에서 경제캘린더 가져오기 시도
+  let econs = econsFallback;
+  try {
+    const resp = await fetch(API.replace('/data.json','') + '/data.json');
+    const dj = await resp.json();
+    if(dj.econ_calendar && dj.econ_calendar.events && dj.econ_calendar.events.length) {
+      econs = dj.econ_calendar.events;
+    }
+  } catch(e) {}
   const ec=$('econCalendar');
-  if(ec) ec.innerHTML=econs.map(e=>{const d=new Date(e.d),diff=Math.ceil((d-today)/864e5),past=diff<0;const ic=e.i==='high'?'var(--red)':e.i==='mid'?'var(--gold)':'var(--text2)';return `<div class="signal-row" style="${past?'opacity:.35':''}"><div style="font-size:14px;width:22px;text-align:center;flex-shrink:0">${e.c}</div><div style="width:6px;height:6px;border-radius:50%;background:${ic};box-shadow:0 0 6px ${ic};flex-shrink:0;margin-top:4px"></div><div class="signal-text"><div style="color:var(--text);font-size:12px;margin-bottom:2px">${e.l} <span style="font-family:monospace;color:var(--text2);font-size:10px">${e.d}</span></div><div style="font-size:11px">${e.desc}</div></div>${past?'<span style="color:var(--text2);font-size:10px">완료</span>':diff===0?'<span style="color:var(--green);font-size:10px;font-weight:700">오늘</span>':`<span style="color:var(--cyan);font-size:10px;font-family:monospace">D-${diff}</span>`}</div>`;}).join('');
+  if(ec) ec.innerHTML=econs.map(e=>{const d=new Date(e.d),diff=Math.ceil((d-today)/864e5),past=diff<0;const ic=e.i==='high'?'var(--red)':e.i==='mid'?'var(--gold)':'var(--text2)';const catIcon=e.cat==='rate'?'🏦':e.cat==='inflation'?'📈':e.cat==='employment'?'👷':e.cat==='gdp'?'📊':e.cat==='pmi'?'🏭':'📋';return `<div class="signal-row" style="${past?'opacity:.35':''}"><div style="font-size:14px;width:22px;text-align:center;flex-shrink:0">${e.c}</div><div style="width:6px;height:6px;border-radius:50%;background:${ic};box-shadow:0 0 6px ${ic};flex-shrink:0;margin-top:4px"></div><div class="signal-text"><div style="color:var(--text);font-size:12px;margin-bottom:2px">${catIcon} ${e.l} <span style="font-family:monospace;color:var(--text2);font-size:10px">${e.d}</span></div></div>${past?'<span style="color:var(--text2);font-size:10px">완료</span>':diff===0?'<span style="color:var(--green);font-size:10px;font-weight:700">오늘</span>':`<span style="color:var(--cyan);font-size:10px;font-family:monospace">D-${diff}</span>`}</div>`;}).join('');
   // Cosmic analysis
   if($('cosmicMarketAnalysis'))$('cosmicMarketAnalysis').innerHTML='<span style="color:var(--gold)">3월 29일 양자리 신월</span>은 대담한 시작과 새로운 투자 사이클의 개막. 직후 <span style="color:var(--cyan)">FOMC(5월 6일)</span>가 예정돼 있어, 신월의 개척 에너지와 통화정책이 만나는 강력한 전환점입니다.<br><br><span style="color:var(--purple2)">황소자리 신월(4월 28일)</span>은 재물·부동산·원자재 섹터의 새로운 기회를 열며, 미국 GDP 예비치와 겹쳐 시장 재편의 기회창이 됩니다.';
   // Astro counters
@@ -1256,6 +1314,41 @@ setInterval(fetchForex, 60000);
 setInterval(fetchFearGreed, 300000);
 setInterval(fetchOnchainData, 60000);
 setInterval(fetchNews, 300000);
+
+// ═══ Phase 9: LIVE VISITOR COUNTER ═══
+(function initVisitorCounter() {
+  // 고유 방문자 ID 생성 (세션 기반)
+  let vid = sessionStorage.getItem('_jhonber_vid');
+  if (!vid) {
+    vid = 'v_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    sessionStorage.setItem('_jhonber_vid', vid);
+  }
+
+  function pingVisitor() {
+    fetch(API_BASE + '/api/visitors/ping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vid: vid, lang: navigator.language || 'unknown' }),
+    })
+    .then(r => r.json())
+    .then(d => {
+      if ($('visitorActive')) $('visitorActive').textContent = d.active || 0;
+      if ($('visitorToday')) $('visitorToday').textContent = d.today || 0;
+      if ($('visitorPeak')) $('visitorPeak').textContent = d.peak || 0;
+      if ($('visitorTotal')) $('visitorTotal').textContent = (d.total || 0).toLocaleString();
+    })
+    .catch(() => {
+      // 실패해도 UI 유지
+      if ($('visitorActive') && $('visitorActive').textContent === '-') {
+        $('visitorActive').textContent = '1';
+      }
+    });
+  }
+
+  // 초기 ping + 60초 간격 갱신
+  setTimeout(pingVisitor, 1000);
+  setInterval(pingVisitor, 60000);
+})();
 </script>
 </body>
 </html>

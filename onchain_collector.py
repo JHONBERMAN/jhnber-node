@@ -572,32 +572,232 @@ def collect_celestial():
 
 
 
-WAR_KEYWORDS = [
-    "airstrike", "nuclear", "assassination", "troops deployed",
-    "artillery", "warship", "missile launch", "military operation",
-    "invasion", "bombing", "drone strike", "naval blockade",
+WAR_KEYWORDS_WEIGHTED = {
+    # CRITICAL (가중치 10) — 직접적 군사 행동
+    "nuclear strike": 10, "nuclear attack": 10, "nuclear war": 10,
+    "nuclear weapon": 8, "nuclear test": 8,
+    "invasion": 8, "full-scale invasion": 10, "ground invasion": 9,
+    "assassination": 8,
+    "declaration of war": 10,
+    # HIGH (가중치 6~7) — 주요 군사 작전
+    "missile launch": 7, "ballistic missile": 7, "cruise missile": 7, "icbm": 9,
+    "airstrike": 6, "air strike": 6, "bombing": 6, "carpet bombing": 8,
+    "drone strike": 6, "drone attack": 6,
+    "naval blockade": 7, "blockade": 5,
+    "military operation": 5, "special military operation": 6,
+    "troops deployed": 5, "troop deployment": 5, "mobilization": 6,
+    "artillery": 4, "shelling": 4,
+    # MEDIUM (가중치 3~4) — 긴장 고조
+    "warship": 4, "aircraft carrier": 5, "naval fleet": 4,
+    "military exercise": 3, "war drill": 3,
+    "sanctions": 3, "embargo": 4,
+    "ceasefire violation": 5, "ceasefire collapse": 6,
+    "territorial dispute": 3, "border clash": 4,
+    "cyber attack": 3, "cyberwar": 4,
+    "escalation": 4, "retaliation": 4, "provocation": 3,
+    # LOW (가중치 1~2) — 배경 긴장
+    "military buildup": 2, "arms deal": 2, "weapons shipment": 2,
+    "defense pact": 1, "military aid": 2, "war crime": 3,
+    "refugee crisis": 2, "humanitarian crisis": 2,
+}
+
+# ── 핫스팟 자동 모니터링 설정 ──
+HOTSPOT_CONFIG = [
+    {
+        "id": "ukraine",
+        "emoji": "🇺🇦",
+        "name": "우크라이나-러시아",
+        "queries": ["Ukraine Russia war", "Ukraine frontline", "Ukraine missile"],
+        "keywords_boost": ["Crimea", "Donbas", "Kherson", "Zaporizhzhia", "escalation Russia Ukraine"],
+        "asset_impact": "에너지 공급 불안 → 유가/천연가스",
+    },
+    {
+        "id": "taiwan",
+        "emoji": "🇹🇼",
+        "name": "대만 해협",
+        "queries": ["Taiwan China military", "Taiwan strait tension"],
+        "keywords_boost": ["TSMC", "semiconductor", "Taiwan invasion", "PLA exercise"],
+        "asset_impact": "반도체 공급망 리스크 → 테크주",
+    },
+    {
+        "id": "middleeast",
+        "emoji": "🇮🇱",
+        "name": "중동 (이스라엘-이란)",
+        "queries": ["Israel Iran conflict", "Middle East war", "Gaza ceasefire"],
+        "keywords_boost": ["Hormuz", "Hezbollah", "Houthi", "Red Sea", "oil tanker"],
+        "asset_impact": "호르무즈 해협 리스크 → 유가",
+    },
+    {
+        "id": "korea",
+        "emoji": "🇰🇵",
+        "name": "한반도",
+        "queries": ["North Korea missile", "Korean peninsula tension"],
+        "keywords_boost": ["ICBM", "Pyongyang", "SLBM", "nuclear test North Korea"],
+        "asset_impact": "미사일 도발 빈도 → KOSPI/원화",
+    },
+    {
+        "id": "ustrade",
+        "emoji": "🇺🇸🇨🇳",
+        "name": "미중 무역/기술 전쟁",
+        "queries": ["US China trade war", "US China tariff", "chip export ban"],
+        "keywords_boost": ["Huawei", "NVIDIA ban", "rare earth", "decoupling", "TikTok ban"],
+        "asset_impact": "AI칩 수출 규제, 관세 정책 → 테크/반도체",
+    },
 ]
 
 
+def _score_text_weighted(text_lower):
+    """텍스트에서 가중치 기반 전쟁 키워드 스코어 계산"""
+    total_score = 0
+    matched = []
+    for keyword, weight in WAR_KEYWORDS_WEIGHTED.items():
+        count = text_lower.count(keyword.lower())
+        if count > 0:
+            # 같은 키워드 반복 시 체감 감소 (로그 스케일)
+            import math
+            effective = weight * (1 + math.log2(count))
+            total_score += effective
+            matched.append((keyword, count, weight))
+    return total_score, matched
+
+
+def _scan_hotspot(hotspot):
+    """개별 핫스팟 RSS 스캔 → 위험도 자동 산출"""
+    total_score = 0
+    headline_count = 0
+
+    for query in hotspot["queries"]:
+        q = query.replace(" ", "+")
+        url = f"https://news.google.com/rss/search?q={q}+when:2d&hl=en&gl=US&ceid=US:en"
+        raw = fetch_raw(url, timeout=8)
+        if not raw:
+            continue
+
+        raw_lower = raw.lower()
+        # 헤드라인 개수 카운트
+        items = raw.split("<item>")
+        headline_count += len(items) - 1
+
+        # 가중치 스코어
+        score, _ = _score_text_weighted(raw_lower)
+        total_score += score
+
+        # 부스트 키워드 (이 핫스팟 고유 키워드)
+        for bkw in hotspot.get("keywords_boost", []):
+            bc = raw_lower.count(bkw.lower())
+            if bc > 0:
+                total_score += bc * 3
+
+        time.sleep(0.15)
+
+    # 정규화 (0~100)
+    # 뉴스 10개 이하 = 기본, 30개 이상 = 높음
+    news_factor = min(headline_count / 20, 2.0)
+    raw_score = total_score * (0.5 + news_factor * 0.5)
+    normalized = min(100, int(raw_score / 3))  # 스케일 조정
+
+    if normalized >= 70:
+        level = "CRITICAL"
+        colors = "red,red"
+    elif normalized >= 45:
+        level = "HIGH"
+        colors = "gold,red"
+    elif normalized >= 20:
+        level = "ELEVATED"
+        colors = "green,gold"
+    else:
+        level = "STABLE"
+        colors = "green,green"
+
+    return {
+        "id": hotspot["id"],
+        "emoji": hotspot["emoji"],
+        "name": hotspot["name"],
+        "score": normalized,
+        "level": level,
+        "colors": colors,
+        "headlines": headline_count,
+        "description": hotspot["asset_impact"],
+    }
+
+
 def collect_war_index():
-    """Google News RSS → 전쟁 키워드 스캔"""
-    print("  ⚔️ 전쟁지수…")
-    try:
-        rss = fetch_raw("https://news.google.com/rss/headlines/section/topic/WORLD") or ""
-        rss_lower = rss.lower()
-        count = sum(rss_lower.count(kw) for kw in WAR_KEYWORDS)
-        score = min(100, count * 5)
-        label = (
-            "CRITICAL" if score >= 80
-            else "HIGH RISK" if score >= 50
-            else "ELEVATED" if score >= 20
-            else "STABLE"
-        )
-        print(f"    ✓ {score} ({label})")
-        return {"value": score, "label": label, "keyword_count": count}
-    except Exception as e:
-        print(f"    ⚠ {e}")
-        return None
+    """전쟁지수 v2 — 가중치 키워드 + 다중 소스 + 핫스팟 자동 스캔"""
+    print("  ⚔️ 전쟁지수 v2…")
+    total_score = 0
+    all_matched = []
+
+    # ── 1차: 글로벌 헤드라인 스캔 (다중 RSS) ──
+    rss_sources = [
+        "https://news.google.com/rss/headlines/section/topic/WORLD",
+        "https://news.google.com/rss/search?q=military+war+conflict+when:1d&hl=en&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=geopolitical+tension+crisis+when:1d&hl=en&gl=US&ceid=US:en",
+    ]
+
+    for url in rss_sources:
+        raw = fetch_raw(url, timeout=10)
+        if not raw:
+            continue
+        score, matched = _score_text_weighted(raw.lower())
+        total_score += score
+        all_matched.extend(matched)
+        time.sleep(0.2)
+
+    # ── 2차: 핫스팟 개별 스캔 ──
+    hotspots = []
+    hotspot_total = 0
+    for hs_config in HOTSPOT_CONFIG:
+        try:
+            hs_result = _scan_hotspot(hs_config)
+            hotspots.append(hs_result)
+            hotspot_total += hs_result["score"]
+        except Exception as e:
+            print(f"    ⚠ 핫스팟 {hs_config['id']}: {e}")
+            hotspots.append({
+                "id": hs_config["id"], "emoji": hs_config["emoji"],
+                "name": hs_config["name"], "score": 0, "level": "UNKNOWN",
+                "colors": "green,green", "headlines": 0,
+                "description": hs_config["asset_impact"],
+            })
+
+    # ── 3차: 복합 지수 계산 ──
+    # 글로벌 헤드라인 (40%) + 핫스팟 합산 (60%)
+    global_normalized = min(100, int(total_score / 5))
+    hotspot_avg = hotspot_total / max(len(hotspots), 1)
+    composite = int(global_normalized * 0.4 + hotspot_avg * 0.6)
+    composite = max(0, min(100, composite))
+
+    if composite >= 80:
+        label = "CRITICAL"
+    elif composite >= 60:
+        label = "HIGH RISK"
+    elif composite >= 30:
+        label = "ELEVATED"
+    else:
+        label = "STABLE"
+
+    # 상위 매치 키워드 (디버그 + 신호 분석)
+    keyword_summary = {}
+    for kw, cnt, wt in all_matched:
+        if kw not in keyword_summary:
+            keyword_summary[kw] = {"count": 0, "weight": wt}
+        keyword_summary[kw]["count"] += cnt
+    top_keywords = sorted(keyword_summary.items(), key=lambda x: x[1]["count"] * x[1]["weight"], reverse=True)[:10]
+
+    print(f"    ✓ 전쟁지수 v2: {composite} ({label})")
+    print(f"    📊 글로벌: {global_normalized} | 핫스팟 평균: {hotspot_avg:.0f}")
+    if top_keywords:
+        print(f"    🔑 상위 키워드: {', '.join(f'{k}({v['count']})' for k, v in top_keywords[:5])}")
+
+    return {
+        "value": composite,
+        "label": label,
+        "keyword_count": sum(v["count"] for v in keyword_summary.values()),
+        "global_score": global_normalized,
+        "hotspot_avg": round(hotspot_avg),
+        "hotspots": hotspots,
+        "top_keywords": [{"keyword": k, "count": v["count"], "weight": v["weight"]} for k, v in top_keywords],
+    }
 
 
 # ── SLOW: CNN Fear & Greed ────────────────────────────
@@ -734,6 +934,168 @@ def collect_mvrv():
     return None
 
 
+# ── SLOW: 상관계수 자동 계산 (Yahoo 90일) ─────────────
+
+_corr_cache = {"data": None, "last": 0}
+
+def _yahoo_history(ticker, days=90):
+    """Yahoo Finance → 종가 배열 (최근 N일)"""
+    import math
+    period2 = int(time.time())
+    period1 = period2 - (days + 10) * 86400  # 여유분
+    url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+           f"?period1={period1}&period2={period2}&interval=1d")
+    data = fetch_json(url)
+    if not data:
+        return []
+    try:
+        closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+        # None 제거
+        return [c for c in closes if c is not None][-days:]
+    except (KeyError, IndexError, TypeError):
+        return []
+
+
+def _pearson(x, y):
+    """피어슨 상관계수 계산 (순수 파이썬)"""
+    import math
+    n = min(len(x), len(y))
+    if n < 10:
+        return None
+    x, y = x[-n:], y[-n:]
+    mx = sum(x) / n
+    my = sum(y) / n
+    sx = math.sqrt(sum((xi - mx) ** 2 for xi in x) / n)
+    sy = math.sqrt(sum((yi - my) ** 2 for yi in y) / n)
+    if sx == 0 or sy == 0:
+        return None
+    cov = sum((x[i] - mx) * (y[i] - my) for i in range(n)) / n
+    return round(cov / (sx * sy), 2)
+
+
+def collect_correlation():
+    """BTC vs 전통자산 90일 롤링 피어슨 상관계수
+    
+    하루 1번만 갱신 (Yahoo 호출 아끼기)
+    """
+    global _corr_cache
+    now = time.time()
+
+    if _corr_cache["data"] and (now - _corr_cache["last"]) < 86400:
+        print("  📐 상관계수… (캐시)")
+        return _corr_cache["data"]
+
+    print("  📐 상관계수 (Yahoo 90일)…")
+
+    pairs = [
+        ("BTC × S&P 500", "BTC-USD", "^GSPC"),
+        ("BTC × NASDAQ", "BTC-USD", "^NDX"),
+        ("BTC × GOLD", "BTC-USD", "GC=F"),
+        ("BTC × DXY(달러)", "BTC-USD", "DX-Y.NYB"),
+        ("ETH × BTC", "ETH-USD", "BTC-USD"),
+        ("BTC × VIX", "BTC-USD", "^VIX"),
+    ]
+
+    # BTC 데이터 한 번만 가져오기
+    btc_data = _yahoo_history("BTC-USD", 90)
+    eth_data = None
+    results = []
+
+    for label, ticker_a, ticker_b in pairs:
+        try:
+            if ticker_a == "BTC-USD":
+                data_a = btc_data
+            elif ticker_a == "ETH-USD":
+                if eth_data is None:
+                    eth_data = _yahoo_history("ETH-USD", 90)
+                data_a = eth_data
+            else:
+                data_a = _yahoo_history(ticker_a, 90)
+
+            if ticker_b == "BTC-USD":
+                data_b = btc_data
+            else:
+                data_b = _yahoo_history(ticker_b, 90)
+
+            corr = _pearson(data_a, data_b)
+
+            if corr is not None:
+                # 해석
+                abs_c = abs(corr)
+                if abs_c >= 0.8:
+                    desc = "매우 강한 상관" if corr > 0 else "매우 강한 역상관"
+                elif abs_c >= 0.5:
+                    desc = "강한 상관" if corr > 0 else "강한 역상관"
+                elif abs_c >= 0.3:
+                    desc = "약한 상관" if corr > 0 else "약한 역상관"
+                else:
+                    desc = "거의 무상관"
+
+                # 색상
+                if corr > 0.5:
+                    color = "0,255,136"
+                elif corr > 0:
+                    color = "201,168,76"
+                elif corr > -0.5:
+                    color = "255,255,255"
+                else:
+                    color = "255,68,68"
+
+                results.append({
+                    "label": label,
+                    "value": f"{'+' if corr > 0 else ''}{corr}",
+                    "corr": corr,
+                    "desc": desc,
+                    "color": color,
+                })
+                print(f"    ✓ {label}: {corr:+.2f} ({desc})")
+            else:
+                print(f"    ⚠ {label}: 데이터 부족")
+
+            time.sleep(0.3)
+        except Exception as e:
+            print(f"    ⚠ {label}: {e}")
+
+    if results:
+        # 해석 텍스트 자동 생성
+        btc_spx = next((r for r in results if "S&P" in r["label"]), None)
+        btc_ndx = next((r for r in results if "NASDAQ" in r["label"]), None)
+        btc_dxy = next((r for r in results if "DXY" in r["label"]), None)
+        btc_gold = next((r for r in results if "GOLD" in r["label"]), None)
+
+        analysis_parts = []
+        if btc_ndx:
+            c = btc_ndx["corr"]
+            if c > 0.6:
+                analysis_parts.append(f'BTC-나스닥 상관계수 {c:+.2f} → 크립토가 기술주와 강하게 동조화 상태.')
+            elif c > 0.3:
+                analysis_parts.append(f'BTC-나스닥 상관계수 {c:+.2f} → 약한 동조화. 독자 움직임 가능성.')
+            else:
+                analysis_parts.append(f'BTC-나스닥 상관계수 {c:+.2f} → 디커플링 진행 중.')
+
+        if btc_dxy:
+            c = btc_dxy["corr"]
+            if c < -0.4:
+                analysis_parts.append(f'달러(DXY) 약세 시 BTC 강세 패턴 유효 ({c:+.2f}).')
+            elif c > 0:
+                analysis_parts.append(f'달러-BTC 양의 상관({c:+.2f}) — 비정상적. 유동성 장세 가능.')
+
+        if btc_gold:
+            c = btc_gold["corr"]
+            if c > 0.3:
+                analysis_parts.append(f'금과의 상관 {c:+.2f} — "디지털 골드" 내러티브 강화 신호.')
+            elif c < -0.2:
+                analysis_parts.append(f'금과 역상관({c:+.2f}) — 위험자산 모드.')
+
+        analysis = ' '.join(analysis_parts) if analysis_parts else '데이터 수집 중.'
+
+        result = {"pairs": results, "analysis": analysis, "period": "90일"}
+        _corr_cache = {"data": result, "last": now}
+        return result
+
+    return None
+
+
 # ── SLOW: 알트시즌 인덱스 ─────────────────────────────
 
 def collect_altseason():
@@ -855,6 +1217,234 @@ def collect_wallstreet_buzz():
         print("    ⚠ 수집 실패")
     
     return buzz
+
+
+# ── SLOW: 경제 캘린더 자동 수집 ──────────────────────
+
+_econ_cal_cache = {"data": None, "last": 0}
+
+def collect_econ_calendar():
+    """Google News RSS + 하드코딩 병합 방식 경제 캘린더
+    
+    주요 이벤트는 하드코딩 (FOMC/CPI/NFP 등 확정 일정)
+    + 뉴스 RSS에서 추가 이벤트 자동 탐지
+    
+    하루 1번 갱신
+    """
+    global _econ_cal_cache
+    now = time.time()
+
+    if _econ_cal_cache["data"] and (now - _econ_cal_cache["last"]) < 86400:
+        print("  📅 경제캘린더… (캐시)")
+        return _econ_cal_cache["data"]
+
+    print("  📅 경제캘린더 자동 수집…")
+
+    # 확정 일정 (2026 기준 — 공식 발표 기반)
+    fixed_events = [
+        {"d": "2026-03-25", "l": "미국 CB 소비자신뢰지수", "i": "mid", "c": "🇺🇸", "cat": "consumer"},
+        {"d": "2026-03-27", "l": "미국 4분기 GDP (확정치)", "i": "high", "c": "🇺🇸", "cat": "gdp"},
+        {"d": "2026-03-28", "l": "미국 핵심 PCE 물가지수", "i": "high", "c": "🇺🇸", "cat": "inflation"},
+        {"d": "2026-04-01", "l": "미국 ISM 제조업 PMI", "i": "high", "c": "🇺🇸", "cat": "pmi"},
+        {"d": "2026-04-03", "l": "미국 비농업 고용 (3월)", "i": "high", "c": "🇺🇸", "cat": "employment"},
+        {"d": "2026-04-10", "l": "미국 CPI (3월)", "i": "high", "c": "🇺🇸", "cat": "inflation"},
+        {"d": "2026-04-15", "l": "중국 GDP (1분기)", "i": "high", "c": "🇨🇳", "cat": "gdp"},
+        {"d": "2026-04-16", "l": "ECB 금리 결정", "i": "high", "c": "🇪🇺", "cat": "rate"},
+        {"d": "2026-04-29", "l": "미국 GDP 예비치", "i": "high", "c": "🇺🇸", "cat": "gdp"},
+        {"d": "2026-04-30", "l": "일본 BOJ 금리 결정", "i": "high", "c": "🇯🇵", "cat": "rate"},
+        {"d": "2026-05-06", "l": "FOMC 금리 결정 (5월)", "i": "high", "c": "🇺🇸", "cat": "rate"},
+        {"d": "2026-05-08", "l": "미국 비농업 고용 (4월)", "i": "high", "c": "🇺🇸", "cat": "employment"},
+        {"d": "2026-05-13", "l": "미국 CPI (4월)", "i": "high", "c": "🇺🇸", "cat": "inflation"},
+        {"d": "2026-05-21", "l": "FOMC 의사록 (5월)", "i": "mid", "c": "🇺🇸", "cat": "rate"},
+        {"d": "2026-06-04", "l": "ECB 금리 결정 (6월)", "i": "high", "c": "🇪🇺", "cat": "rate"},
+        {"d": "2026-06-05", "l": "미국 비농업 고용 (5월)", "i": "high", "c": "🇺🇸", "cat": "employment"},
+        {"d": "2026-06-10", "l": "미국 CPI (5월)", "i": "high", "c": "🇺🇸", "cat": "inflation"},
+        {"d": "2026-06-17", "l": "FOMC 금리 결정 (6월)", "i": "high", "c": "🇺🇸", "cat": "rate"},
+        {"d": "2026-07-02", "l": "미국 비농업 고용 (6월)", "i": "high", "c": "🇺🇸", "cat": "employment"},
+        {"d": "2026-07-15", "l": "미국 CPI (6월)", "i": "high", "c": "🇺🇸", "cat": "inflation"},
+        {"d": "2026-07-29", "l": "FOMC 금리 결정 (7월)", "i": "high", "c": "🇺🇸", "cat": "rate"},
+        {"d": "2026-08-07", "l": "미국 비농업 고용 (7월)", "i": "high", "c": "🇺🇸", "cat": "employment"},
+        {"d": "2026-09-16", "l": "FOMC 금리 결정 (9월)", "i": "high", "c": "🇺🇸", "cat": "rate"},
+        {"d": "2026-11-04", "l": "FOMC 금리 결정 (11월)", "i": "high", "c": "🇺🇸", "cat": "rate"},
+        {"d": "2026-12-16", "l": "FOMC 금리 결정 (12월)", "i": "high", "c": "🇺🇸", "cat": "rate"},
+    ]
+
+    # 뉴스에서 추가 이벤트 자동 탐지
+    news_events = []
+    econ_queries = [
+        "economic data release this week",
+        "CPI PPI GDP jobs report this week",
+        "central bank rate decision this week",
+    ]
+
+    for query in econ_queries:
+        q = query.replace(" ", "+")
+        url = f"https://news.google.com/rss/search?q={q}+when:3d&hl=en&gl=US&ceid=US:en"
+        raw = fetch_raw(url, timeout=8)
+        if not raw or "<item>" not in raw:
+            continue
+
+        items = raw.split("<item>")[1:5]
+        for item in items:
+            t_match = re.search(r"<title>(.*?)</title>", item, re.DOTALL)
+            if t_match:
+                title = t_match.group(1).strip()
+                title = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", title)
+                title = re.sub(r"<[^>]+>", "", title).strip()[:120]
+
+                source_match = re.search(r"<source[^>]*>(.*?)</source>", item)
+                source = source_match.group(1) if source_match else ""
+
+                news_events.append({
+                    "title": title,
+                    "source": source,
+                })
+        time.sleep(0.2)
+
+    # 결과 = 확정 + 뉴스 부가
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # 과거 이벤트 유지 (최근 3일)
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=3)).strftime("%Y-%m-%d")
+    active_events = [e for e in fixed_events if e["d"] >= cutoff]
+
+    result = {
+        "events": active_events,
+        "news_supplement": news_events[:8],
+        "updated": today_str,
+    }
+
+    _econ_cal_cache = {"data": result, "last": now}
+    print(f"    ✓ 확정 {len(active_events)}건 + 뉴스 {len(news_events[:8])}건")
+    return result
+
+
+# ── SLOW: CDS 스프레드 (국가 부도 위험 지표) ─────────
+
+_cds_cache = {"data": None, "last": 0}
+
+CDS_COUNTRIES = {
+    "US": {"name": "미국", "emoji": "🇺🇸", "baseline": 30},
+    "CN": {"name": "중국", "emoji": "🇨🇳", "baseline": 65},
+    "JP": {"name": "일본", "emoji": "🇯🇵", "baseline": 25},
+    "KR": {"name": "한국", "emoji": "🇰🇷", "baseline": 35},
+    "DE": {"name": "독일", "emoji": "🇩🇪", "baseline": 15},
+    "TR": {"name": "터키", "emoji": "🇹🇷", "baseline": 350},
+    "BR": {"name": "브라질", "emoji": "🇧🇷", "baseline": 160},
+    "RU": {"name": "러시아", "emoji": "🇷🇺", "baseline": 500},
+}
+
+
+def collect_cds():
+    """CDS 스프레드 수집 — WorldGovernmentBonds.com 스크래핑
+    
+    하루 1번 갱신 (CDS는 일 단위 변동)
+    """
+    global _cds_cache
+    now = time.time()
+
+    if _cds_cache["data"] and (now - _cds_cache["last"]) < 86400:
+        print("  💳 CDS… (캐시)")
+        return _cds_cache["data"]
+
+    print("  💳 CDS 스프레드 수집…")
+
+    results = []
+
+    # 1차: worldgovernmentbonds.com (가장 신뢰할 수 있는 무료 소스)
+    raw = fetch_raw("https://www.worldgovernmentbonds.com/cds-spreads/", timeout=15)
+    if raw:
+        try:
+            # 테이블에서 국가별 CDS 파싱
+            # 패턴: 국가명 ... 5Y CDS 값
+            for code, info in CDS_COUNTRIES.items():
+                country_name_en = {
+                    "US": "United States", "CN": "China", "JP": "Japan",
+                    "KR": "South Korea", "DE": "Germany", "TR": "Turkey",
+                    "BR": "Brazil", "RU": "Russia",
+                }.get(code, "")
+
+                if not country_name_en:
+                    continue
+
+                # 해당 국가 행 찾기
+                idx = raw.find(country_name_en)
+                if idx < 0:
+                    continue
+
+                # 근처에서 숫자 패턴 탐색 (CDS 값은 보통 소수점 포함 숫자)
+                snippet = raw[idx:idx + 500]
+                # bp 값 파싱 시도
+                nums = re.findall(r'(\d+(?:\.\d+)?)\s*(?:bp|bps)?', snippet)
+                if nums:
+                    # 첫 번째 합리적 범위의 숫자를 5Y CDS로 사용
+                    for n in nums:
+                        val = float(n)
+                        if 1 < val < 5000:  # 합리적 CDS 범위
+                            spread = round(val, 1)
+                            # 위험도 계산
+                            ratio = spread / max(info["baseline"], 1)
+                            if ratio > 2:
+                                risk = "CRITICAL"
+                                color = "var(--red)"
+                            elif ratio > 1.3:
+                                risk = "ELEVATED"
+                                color = "var(--gold)"
+                            else:
+                                risk = "NORMAL"
+                                color = "var(--green)"
+
+                            results.append({
+                                "code": code,
+                                "name": info["name"],
+                                "emoji": info["emoji"],
+                                "spread_5y": spread,
+                                "baseline": info["baseline"],
+                                "risk": risk,
+                                "color": color,
+                            })
+                            break
+
+            if results:
+                print(f"    ✓ CDS: {len(results)}개국 파싱 완료")
+        except Exception as e:
+            print(f"    ⚠ CDS 파싱 에러: {e}")
+
+    # 2차: 폴백 — 뉴스 기반 추정 (실패 시)
+    if not results:
+        print("    ⚠ CDS 직접 파싱 실패 — 기본값 사용")
+        for code, info in CDS_COUNTRIES.items():
+            results.append({
+                "code": code,
+                "name": info["name"],
+                "emoji": info["emoji"],
+                "spread_5y": info["baseline"],
+                "baseline": info["baseline"],
+                "risk": "NORMAL",
+                "color": "var(--text2)",
+                "fallback": True,
+            })
+
+    # 정렬: 위험도 높은 순
+    results.sort(key=lambda x: x["spread_5y"], reverse=True)
+
+    # 전체 위험 시그널
+    avg_ratio = sum(r["spread_5y"] / max(r["baseline"], 1) for r in results) / max(len(results), 1)
+    if avg_ratio > 1.5:
+        signal = "글로벌 신용 리스크 급등 — 안전자산 비중 확대 긴급"
+    elif avg_ratio > 1.2:
+        signal = "일부 국가 CDS 확대 — 리스크 모니터링 강화"
+    else:
+        signal = "글로벌 CDS 안정 — 신용 시장 정상"
+
+    result = {
+        "countries": results,
+        "avg_ratio": round(avg_ratio, 2),
+        "signal": signal,
+    }
+
+    _cds_cache = {"data": result, "last": now}
+    return result
 
 
 # ── SLOW: X 속보 (Twitter/X RSS) ─────────────────────
@@ -1159,6 +1749,9 @@ def run_once():
         wallstreet = collect_wallstreet_buzz()
         x_feed = collect_x_feed()
         whales, usdt_inflow, usdc_inflow = collect_whales()
+        correlation = collect_correlation()
+        econ_cal = collect_econ_calendar()
+        cds = collect_cds()
 
         _slow_cache = {
             "yahoo": yahoo, "fred": fred, "okx": okx,
@@ -1168,6 +1761,9 @@ def run_once():
             "stablecoin": stablecoin, "wallstreet": wallstreet,
             "x_feed": x_feed,
             "whales": whales, "usdt": usdt_inflow, "usdc": usdc_inflow,
+            "correlation": correlation,
+            "econ_cal": econ_cal,
+            "cds": cds,
         }
         _last_slow = now
     else:
@@ -1261,6 +1857,12 @@ def run_once():
             "score": 50, "rating": "NEUTRAL",
             "previous_close": 50, "one_week_ago": 50, "one_month_ago": 50,
         },
+
+        "correlation": sc.get("correlation") or None,
+
+        "econ_calendar": sc.get("econ_cal") or None,
+
+        "cds": sc.get("cds") or None,
 
         "last_updated": datetime.now(timezone.utc).isoformat(),
     }

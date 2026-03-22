@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-X-INTELLIGENCE : JHONBER NODE — Flask API Server v6.1
+X-INTELLIGENCE : JHONBER NODE — Flask API Server v7.0
 =====================================================
 data.json 서빙 + 캐시 헤더 최적화 + gzip + CORS
++ 실시간 방문자 카운터 + CDS 데이터
 
 Railway Procfile: web: python server.py
 """
@@ -13,6 +14,7 @@ import json
 import os
 import threading
 import time
+from collections import defaultdict
 from flask import Flask, Response, request
 
 app = Flask(__name__)
@@ -22,6 +24,18 @@ PORT = int(os.environ.get("PORT", 5000))
 
 # ── 캐시된 응답 (메모리) ──
 _cache = {"body": b"", "etag": "", "mtime": 0, "gzipped": b""}
+
+# ── 실시간 방문자 추적 (메모리) ──
+_visitors = {
+    "active": {},        # {visitor_id: last_ping_timestamp}
+    "total_today": 0,
+    "total_all": 0,
+    "today_date": "",
+    "peak_today": 0,
+    "country_count": defaultdict(int),  # 간이 국가별 카운트
+}
+_visitors_lock = threading.Lock()
+VISITOR_TIMEOUT = 120  # 2분 내 ping 없으면 이탈로 간주
 
 
 def _refresh_cache():
@@ -77,6 +91,93 @@ def serve_data():
     return resp
 
 
+def _cors_headers():
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+
+
+def _clean_stale_visitors():
+    """타임아웃된 방문자 제거"""
+    now = time.time()
+    stale = [vid for vid, ts in _visitors["active"].items() if now - ts > VISITOR_TIMEOUT]
+    for vid in stale:
+        del _visitors["active"][vid]
+
+
+def _check_today_reset():
+    """날짜 변경 시 today 카운터 리셋"""
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _visitors["today_date"] != today:
+        _visitors["today_date"] = today
+        _visitors["total_today"] = 0
+        _visitors["peak_today"] = 0
+        _visitors["country_count"] = defaultdict(int)
+
+
+@app.route("/api/visitors/ping", methods=["POST", "OPTIONS"])
+def visitor_ping():
+    """방문자 heartbeat — 프론트에서 60초마다 호출"""
+    if request.method == "OPTIONS":
+        return Response("", headers=_cors_headers())
+
+    with _visitors_lock:
+        _check_today_reset()
+        _clean_stale_visitors()
+
+        data = request.get_json(silent=True) or {}
+        vid = data.get("vid", request.remote_addr or "unknown")
+        lang = data.get("lang", "unknown")[:5]
+        is_new = vid not in _visitors["active"]
+
+        _visitors["active"][vid] = time.time()
+
+        if is_new:
+            _visitors["total_today"] += 1
+            _visitors["total_all"] += 1
+            # 간이 국가 추정 (Accept-Language 기반)
+            accept_lang = request.headers.get("Accept-Language", "")[:2].upper()
+            country = accept_lang if accept_lang else lang[:2].upper()
+            if country:
+                _visitors["country_count"][country] += 1
+
+        active_count = len(_visitors["active"])
+        if active_count > _visitors["peak_today"]:
+            _visitors["peak_today"] = active_count
+
+        return Response(
+            json.dumps({
+                "active": active_count,
+                "today": _visitors["total_today"],
+                "total": _visitors["total_all"],
+                "peak": _visitors["peak_today"],
+            }),
+            mimetype="application/json",
+            headers=_cors_headers(),
+        )
+
+
+@app.route("/api/visitors")
+def visitor_stats():
+    """현재 방문자 통계 (읽기 전용)"""
+    with _visitors_lock:
+        _check_today_reset()
+        _clean_stale_visitors()
+        return Response(
+            json.dumps({
+                "active": len(_visitors["active"]),
+                "today": _visitors["total_today"],
+                "total": _visitors["total_all"],
+                "peak_today": _visitors["peak_today"],
+            }),
+            mimetype="application/json",
+            headers=_cors_headers(),
+        )
+
+
 @app.route("/health")
 def health():
     exists = os.path.exists(DATA_FILE)
@@ -91,7 +192,9 @@ def health():
 @app.route("/")
 def root():
     return Response(
-        json.dumps({"service": "JHONBER NODE v6.1", "endpoints": ["/data.json", "/health"]}),
+        json.dumps({"service": "JHONBER NODE v7.0", "endpoints": [
+            "/data.json", "/health", "/api/visitors", "/api/visitors/ping"
+        ]}),
         mimetype="application/json",
         headers={"Access-Control-Allow-Origin": "*"},
     )
