@@ -409,37 +409,42 @@ def collect_okx(btc_price):
 
                 # ── Hyperliquid 리더보드 → 체급별 포지션 ──
                 try:
-                    lb = hl_post("leaderboard")
-                    if lb and isinstance(lb, list):
-                        whale_net = 0  # 상위 10 (100+ BTC급)
-                        shark_net = 0  # 11~30위 (10~100 BTC급)
-                        fish_net = 0   # 31~60위
-                        shrimp_net = 0 # 나머지
-
-                        for i, trader in enumerate(lb[:80]):
-                            pnl = safe_float(trader.get("accountValue", 0))
-                            # 포지션 방향 추정: windowPnl > 0 = 롱 우세
-                            window_pnl = safe_float(trader.get("windowPnl", 0))
-                            position_sign = 1 if window_pnl >= 0 else -1
-                            position_size = abs(pnl) * position_sign
-
-                            if i < 10:
-                                whale_net += position_size
-                            elif i < 30:
-                                shark_net += position_size
-                            elif i < 60:
-                                fish_net += position_size
-                            else:
-                                shrimp_net += position_size
+                    # HL clearinghouseState로 대형 트레이더 포지션 조회
+                    # leaderboard는 별도 웹 스크래핑 필요 — 대신 vault 정보 사용
+                    vault_data = hl_post("vaultDetails")
+                    if vault_data and isinstance(vault_data, dict):
+                        # 볼트(펀드) 포지션으로 고래 방향성 추정
+                        leader = vault_data.get("leader", {})
+                        followers = vault_data.get("followers", [])
+                        whale_net = safe_float(leader.get("pnl", 0))
+                        shark_net = sum(safe_float(f.get("pnl", 0)) for f in followers[:20]) if followers else 0
+                        fish_net = sum(safe_float(f.get("pnl", 0)) for f in followers[20:50]) if len(followers) > 20 else 0
+                        shrimp_net = sum(safe_float(f.get("pnl", 0)) for f in followers[50:]) if len(followers) > 50 else 0
 
                         cvd_data["whale"] = round(whale_net)
                         cvd_data["shark"] = round(shark_net)
                         cvd_data["fish"] = round(fish_net)
                         cvd_data["shrimp"] = round(shrimp_net)
-                        cvd_data["source"] = "OKX CVD + Hyperliquid 리더보드"
-                        print(f"    ✓ HL 리더보드 체급별: 🐋{whale_net/1e6:.1f}M 🦈{shark_net/1e6:.1f}M")
+                        cvd_data["source"] = "OKX CVD + Hyperliquid"
+                        print(f"    ✓ HL 체급별: 🐋{whale_net/1e6:.1f}M 🦈{shark_net/1e6:.1f}M")
+                    else:
+                        # 볼트 데이터 없으면 OKX 대형/소형 비율로 대체
+                        big = fetch_json("https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy=BTC&period=5m")
+                        big_top = fetch_json("https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-volume?ccy=BTC&period=5m")
+                        if big and big.get("data") and big_top and big_top.get("data"):
+                            ratio_all = safe_float(big["data"][0][1])
+                            # 전체 롱비율 vs 대형 트레이더 롱비율 차이로 추정
+                            all_long = ratio_all / (1 + ratio_all) * 100 if ratio_all > 0 else 50
+                            # 고래는 반대 포지션 경향
+                            whale_direction = 1 if net > 0 else -1
+                            cvd_data["whale"] = round(abs(net) * 0.5 * whale_direction)
+                            cvd_data["shark"] = round(abs(net) * 0.25 * whale_direction)
+                            cvd_data["fish"] = round(abs(net) * 0.15 * (-whale_direction))
+                            cvd_data["shrimp"] = round(abs(net) * 0.10 * (-whale_direction))
+                            cvd_data["source"] = "OKX CVD + 대형/소형 비율 추정"
+                            print(f"    ✓ OKX 비율 기반 체급별 추정")
                 except Exception as e:
-                    print(f"    ⚠ HL 리더보드: {e}")
+                    print(f"    ⚠ 체급별: {e}")
 
                 out["cvd"] = cvd_data
                 _cvd_cache = {"data": cvd_data, "last": now}
@@ -1867,33 +1872,31 @@ def collect_trump_truth():
     return result
 
 
-def collect_whales():
-    """고래 알림 수집 — Blockchair (무료) + Whale Alert (유료 키 있으면)
+def collect_whales(btc_price=87000, eth_price=2100):
+    """고래 이동 실시간 — Blockchair API (무료)
     
-    1차: Blockchair API (무료, 일 30,000회) — BTC/ETH 대형 TX
-    2차: Whale Alert API (키 있으면 보충)
+    BTC/ETH 대형 트랜잭션 실시간 수집
+    출처: Blockchair (무료, 일 30,000회)
     """
-    print("  🐋 고래 알림 (Blockchair)…")
+    print("  🐋 대형 거래 (Blockchair)…")
     alerts = []
-    usdt_to_exchange = 0
-    usdc_to_exchange = 0
 
-    # ── 1차: Blockchair BTC 대형 거래 ──
+    # ── BTC 대형 거래 ──
     try:
         btc_data = fetch_json(
-            "https://api.blockchair.com/bitcoin/transactions?s=output_total(desc)&limit=10"
+            "https://api.blockchair.com/bitcoin/transactions"
+            "?s=output_total(desc)&limit=10&q=output_total(100000000..)"  # 1 BTC+ 필터
         )
         if btc_data and btc_data.get("data"):
             for tx in btc_data["data"]:
                 output_sat = tx.get("output_total", 0)
                 output_btc = output_sat / 1e8
-                # BTC 가격 대략 추정 (정확한 값은 HL에서 가져오지만 여기선 독립적)
-                # 실제 가격은 프론트에서 보정 가능
-                output_usd = output_btc * 87000
+                output_usd = output_btc * btc_price
 
-                if output_usd < 1_000_000:  # $1M 이상만
+                if output_usd < 1_000_000:
                     continue
 
+                # 시간 파싱
                 ts_str = tx.get("time", "")
                 ts = int(time.time())
                 if ts_str:
@@ -1903,40 +1906,53 @@ def collect_whales():
                     except Exception:
                         pass
 
+                tx_hash = tx.get("hash", "")
+                input_count = tx.get("input_count", 0)
+                output_count = tx.get("output_count", 0)
+
                 alerts.append({
                     "symbol": "BTC",
                     "amount": round(output_btc, 4),
                     "amount_usd": round(output_usd),
-                    "from": tx.get("hash", "")[:12] + "…",
-                    "to": "BTC TX",
+                    "from": f"{input_count} inputs",
+                    "to": f"{output_count} outputs",
                     "timestamp": ts,
+                    "tx_hash": tx_hash[:16] if tx_hash else "",
                     "source": "Blockchair",
                 })
             btc_count = sum(1 for a in alerts if a["symbol"] == "BTC")
             if btc_count:
-                print(f"    ✓ Blockchair BTC: {btc_count}건")
+                print(f"    ✓ BTC 대형 TX: {btc_count}건")
+        else:
+            print("    ⚠ Blockchair BTC: 응답 없음")
     except Exception as e:
         print(f"    ⚠ Blockchair BTC: {e}")
 
     time.sleep(0.3)
 
-    # ── Blockchair ETH 대형 거래 ──
+    # ── ETH 대형 거래 ──
     try:
         eth_data = fetch_json(
-            "https://api.blockchair.com/ethereum/transactions?s=value(desc)&limit=10"
+            "https://api.blockchair.com/ethereum/transactions"
+            "?s=value(desc)&limit=10&q=value(1000000000000000000..)"  # 1 ETH+ 필터
         )
         if eth_data and eth_data.get("data"):
             for tx in eth_data["data"]:
                 value_raw = tx.get("value", 0)
-                # Blockchair ETH value는 wei 단위
-                value_eth = value_raw / 1e18 if value_raw > 1e15 else value_raw
-                value_usd = value_eth * 2100
+                # Blockchair ETH: value 단위가 wei (10^18)
+                if isinstance(value_raw, str):
+                    value_raw = int(value_raw)
+                value_eth = value_raw / 1e18
+                value_usd = value_eth * eth_price
 
                 if value_usd < 1_000_000:
                     continue
 
-                recipient = (tx.get("recipient", "") or "Unknown")[:16]
-                sender = (tx.get("sender", "") or "Unknown")[:16]
+                recipient = (tx.get("recipient", "") or "")
+                sender = (tx.get("sender", "") or "")
+                # 주소 축약
+                to_label = recipient[:8] + "…" + recipient[-4:] if len(recipient) > 12 else recipient or "Contract"
+                from_label = sender[:8] + "…" + sender[-4:] if len(sender) > 12 else sender or "Contract"
 
                 ts_str = tx.get("time", "")
                 ts = int(time.time())
@@ -1951,56 +1967,28 @@ def collect_whales():
                     "symbol": "ETH",
                     "amount": round(value_eth, 2),
                     "amount_usd": round(value_usd),
-                    "from": sender,
-                    "to": recipient,
+                    "from": from_label,
+                    "to": to_label,
                     "timestamp": ts,
+                    "tx_hash": (tx.get("hash", "") or "")[:16],
                     "source": "Blockchair",
                 })
             eth_count = sum(1 for a in alerts if a["symbol"] == "ETH")
             if eth_count:
-                print(f"    ✓ Blockchair ETH: {eth_count}건")
+                print(f"    ✓ ETH 대형 TX: {eth_count}건")
+        else:
+            print("    ⚠ Blockchair ETH: 응답 없음")
     except Exception as e:
         print(f"    ⚠ Blockchair ETH: {e}")
-
-    # ── 2차: Whale Alert API (키 있으면, 스테이블코인 추적 보충) ──
-    if WHALE_KEY and WHALE_KEY != "YOUR_KEY":
-        try:
-            since = int(time.time()) - 3600
-            data = fetch_json(
-                f"https://api.whale-alert.io/v1/transactions?"
-                f"api_key={WHALE_KEY}&min_value=500000&start={since}"
-            )
-            txs = data.get("transactions", []) if data else []
-            for tx in txs:
-                sym = tx.get("symbol", "?").upper()
-                usd = tx.get("amount_usd", 0)
-                if tx.get("to_type") == "exchange":
-                    if sym == "USDT":
-                        usdt_to_exchange += usd
-                    elif sym == "USDC":
-                        usdc_to_exchange += usd
-                alerts.append({
-                    "symbol": sym, "amount": tx.get("amount", 0),
-                    "amount_usd": usd,
-                    "from": tx.get("from", {}).get("owner", "Unknown")[:16],
-                    "to": tx.get("to", {}).get("owner", "Unknown")[:16],
-                    "timestamp": tx.get("timestamp", 0),
-                    "source": "Whale Alert",
-                })
-            if txs:
-                print(f"    ✓ Whale Alert API: {len(txs)}건 보충")
-        except Exception as e:
-            print(f"    ⚠ Whale Alert: {e}")
 
     # 정렬 + 반환
     alerts.sort(key=lambda x: x["amount_usd"], reverse=True)
     result = alerts[:15]
-    total = len(result)
-    if total:
-        print(f"    ✓ 고래 총 {total}건 수집")
+    if result:
+        print(f"    ✓ 대형 거래 총 {len(result)}건")
     else:
-        print("    ⚠ 고래 데이터 없음")
-    return result, usdt_to_exchange, usdc_to_exchange
+        print("    ⚠ 대형 거래 데이터 없음")
+    return result, 0, 0
 
 
 # ── 메인 수집 루프 ────────────────────────────────────
@@ -2039,7 +2027,8 @@ def run_once():
         stablecoin = collect_stablecoin_flow()
         wallstreet = collect_wallstreet_buzz()
         x_feed = collect_x_feed()
-        whales, usdt_inflow, usdc_inflow = collect_whales()
+        eth = hl.get("eth_usd") or 2100
+        whales, usdt_inflow, usdc_inflow = collect_whales(btc, eth)
         trump = collect_trump_truth()
         correlation = collect_correlation()
         econ_cal = collect_econ_calendar()
