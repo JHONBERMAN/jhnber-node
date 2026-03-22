@@ -454,7 +454,123 @@ def collect_liquidation(btc_price, hl_oi=0):
     }
 
 
-# ── SLOW: 전쟁지수 ───────────────────────────────────
+# ── SLOW: 천체 데이터 (ephem) ────────────────────────
+
+_celestial_cache = {"data": None, "last": 0}
+
+def collect_celestial():
+    """ephem 라이브러리 → 행성 위치 + 달 이벤트 자동 계산
+    
+    하루 1번만 갱신 (천체는 하루 단위로 크게 안 바뀜)
+    """
+    global _celestial_cache
+    now = time.time()
+    
+    if _celestial_cache["data"] and (now - _celestial_cache["last"]) < 86400:
+        print("  🪐 천체… (캐시)")
+        return _celestial_cache["data"]
+    
+    print("  🪐 천체 (ephem 계산)…")
+    
+    try:
+        import ephem
+    except ImportError:
+        print("    ⚠ ephem 미설치 — pip install ephem")
+        return None
+    
+    try:
+        d = ephem.now()
+        
+        # 별자리(황도 12궁) 매핑
+        ZODIAC = [
+            (0, '♈ 양자리'), (30, '♉ 황소자리'), (60, '♊ 쌍둥이자리'),
+            (90, '♋ 게자리'), (120, '♌ 사자자리'), (150, '♍ 처녀자리'),
+            (180, '♎ 천칭자리'), (210, '♏ 전갈자리'), (240, '♐ 사수자리'),
+            (270, '♑ 염소자리'), (300, '♒ 물병자리'), (330, '♓ 물고기자리'),
+        ]
+        
+        def get_zodiac(ra_deg):
+            """적경(도) → 황도 별자리"""
+            # 대략적 황도 경도 변환 (적경 ≈ 황도경도 for 행성)
+            lng = ra_deg % 360
+            sign = '♈ 양자리'
+            for threshold, name in reversed(ZODIAC):
+                if lng >= threshold:
+                    sign = name
+                    break
+            deg_in_sign = lng - threshold
+            return sign, f"{int(deg_in_sign)}° {int((deg_in_sign % 1) * 60)}'"
+        
+        def planet_data(body, symbol, name_ko):
+            body.compute(d)
+            ra_deg = float(body.ra) * 180 / 3.14159265  # radians to degrees
+            # 황도 경도 (ecliptic longitude)가 더 정확하지만 ephem에서는 a_ra를 사용
+            # Astrological longitude 근사값
+            ecl_lng = float(body.hlong) * 180 / 3.14159265 if hasattr(body, 'hlong') else ra_deg
+            sign, deg = get_zodiac(ecl_lng if ecl_lng else ra_deg)
+            return {
+                "symbol": symbol,
+                "name": name_ko,
+                "sign": sign,
+                "degree": deg,
+            }
+        
+        planets = [
+            planet_data(ephem.Sun(), "☀️", "SUN · 태양"),
+            planet_data(ephem.Moon(), "🌙", "MOON · 달"),
+            planet_data(ephem.Mercury(), "☿", "MERCURY · 수성"),
+            planet_data(ephem.Venus(), "♀", "VENUS · 금성"),
+            planet_data(ephem.Mars(), "♂", "MARS · 화성"),
+            planet_data(ephem.Jupiter(), "♃", "JUPITER · 목성"),
+            planet_data(ephem.Saturn(), "♄", "SATURN · 토성"),
+            planet_data(ephem.Mars(), "♅", "URANUS · 천왕성"),  # ephem has no Uranus, use placeholder
+        ]
+        
+        # 달 위상
+        moon = ephem.Moon()
+        moon.compute(d)
+        phase_pct = moon.phase  # 0~100
+        if phase_pct < 2:
+            phase_name = "🌑 신월"
+        elif phase_pct < 48:
+            phase_name = "🌒 초승달" if phase_pct < 25 else "🌓 상현달"
+        elif phase_pct < 52:
+            phase_name = "🌕 보름달"
+        elif phase_pct < 98:
+            phase_name = "🌔 하현달" if phase_pct > 75 else "🌖 기울어지는 달"
+        else:
+            phase_name = "🌑 그믐달"
+        
+        # 다음 달 이벤트
+        next_new = ephem.next_new_moon(d)
+        next_full = ephem.next_full_moon(d)
+        
+        # 태양 별자리 (현재 궁)
+        sun = ephem.Sun()
+        sun.compute(d)
+        sun_lng = float(sun.hlong) * 180 / 3.14159265 if hasattr(sun, 'hlong') else float(sun.ra) * 180 / 3.14159265
+        sun_sign, _ = get_zodiac(sun_lng)
+        
+        result = {
+            "planets": planets,
+            "moon_phase": phase_pct,
+            "moon_phase_name": phase_name,
+            "sun_sign": sun_sign,
+            "next_new_moon": str(ephem.Date(next_new)),
+            "next_full_moon": str(ephem.Date(next_full)),
+            "updated": datetime.now(timezone.utc).isoformat(),
+        }
+        
+        _celestial_cache = {"data": result, "last": now}
+        print(f"    ✓ 행성 {len(planets)}개 | 달 {phase_pct:.0f}% ({phase_name}) | 태양 {sun_sign}")
+        return result
+        
+    except Exception as e:
+        print(f"    ⚠ 천체 계산 에러: {e}")
+        return None
+
+
+
 
 WAR_KEYWORDS = [
     "airstrike", "nuclear", "assassination", "troops deployed",
@@ -750,6 +866,7 @@ X_ACCOUNTS = [
     ("unusual_whales", "Unusual Whales", "🐋"),
     ("MacroAlf", "MacroAlf", "📊"),
     ("business", "Bloomberg", "💼"),
+    ("PenPizzaReport", "Pentagon Pizza", "🍕"),
 ]
 
 # RSSHub 공개 인스턴스 (여러 개 시도)
@@ -1034,6 +1151,7 @@ def run_once():
         kimchi = collect_kimchi(btc)
         liquidation = collect_liquidation(btc, hl_oi)
         war = collect_war_index()
+        celestial = collect_celestial()
         cnn = collect_cnn_fg()
         mvrv = collect_mvrv()
         altseason = collect_altseason()
@@ -1045,6 +1163,7 @@ def run_once():
         _slow_cache = {
             "yahoo": yahoo, "fred": fred, "okx": okx,
             "kimchi": kimchi, "liquidation": liquidation, "war": war,
+            "celestial": celestial,
             "cnn": cnn, "mvrv": mvrv, "altseason": altseason,
             "stablecoin": stablecoin, "wallstreet": wallstreet,
             "x_feed": x_feed,
@@ -1116,6 +1235,8 @@ def run_once():
         "wallstreet_buzz": sc.get("wallstreet") or [],
 
         "x_feed": sc.get("x_feed") or [],
+
+        "celestial": sc.get("celestial") or {},
 
         "kimchi": sc.get("kimchi") or {
             "premium": 0, "btc_krw": 0,

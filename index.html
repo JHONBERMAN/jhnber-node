@@ -516,18 +516,20 @@ function buildOverview() {
 
 // ── ASTROLOGY ── (kept compact, same content)
 function buildAstro() {
-  const planets = [
-    ['☀️','SUN · 태양','♈ 양자리',"0° 42'"],['🌙','MOON · 달','♊ 쌍둥이자리',"14° 18'"],
-    ['☿','MERCURY · 수성','♓ 물고기자리',"28° 15'"],['♀','VENUS · 금성','♈ 양자리',"6° 44'"],
-    ['♂','MARS · 화성','♋ 게자리',"22° 08'"],['♃','JUPITER · 목성','♋ 게자리',"10° 32'"],
-    ['♄','SATURN · 토성','♓ 물고기자리',"29° 55'"],['♅','URANUS · 천왕성','♊ 쌍둥이자리',"1° 48'"],
+  // 초기값 (data.json에서 자동 업데이트됨)
+  const defaultPlanets = [
+    ['☀️','SUN · 태양','계산 중…','--'],['🌙','MOON · 달','계산 중…','--'],
+    ['☿','MERCURY · 수성','계산 중…','--'],['♀','VENUS · 금성','계산 중…','--'],
+    ['♂','MARS · 화성','계산 중…','--'],['♃','JUPITER · 목성','계산 중…','--'],
+    ['♄','SATURN · 토성','계산 중…','--'],['♅','URANUS · 천왕성','계산 중…','--'],
   ];
   return P('astro') +
   `<div class="card section-gap">
     ${CT(`<svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)" stroke="none"><path d="M12 2l2.4 7.2H22l-6 4.8 2.4 7.2L12 16.4l-6.4 4.8L8 14 2 9.2h7.6z"/></svg>`,'오늘의 행성 위치',TS('astroDateLabel'))}
-    <div class="astro-grid">
-      ${planets.map(([sym,name,sign,deg]) => `<div class="planet-card"><div class="planet-symbol">${sym}</div><div class="planet-name">${name}</div><div class="planet-sign">${sign}</div><div class="planet-deg">${deg}</div></div>`).join('')}
+    <div class="astro-grid" id="planetGrid">
+      ${defaultPlanets.map(([sym,name,sign,deg]) => `<div class="planet-card"><div class="planet-symbol">${sym}</div><div class="planet-name">${name}</div><div class="planet-sign">${sign}</div><div class="planet-deg">${deg}</div></div>`).join('')}
     </div>
+    <div id="moonPhaseInfo" style="margin-top:12px;padding:12px;background:rgba(201,168,76,.05);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text2);text-align:center">달 위상 계산 중…</div>
   </div>
   <div class="card section-gap">
     ${CT(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,'GEOCOSMIC ANALYSIS — MMA 메리먼 방법론')}
@@ -859,6 +861,16 @@ async function fetchOnchainData() {
     // Timestamps — data.json의 last_updated를 서버 수집 시각으로 사용
     const serverTime = data.last_updated ? new Date(data.last_updated) : new Date();
     ['stockUpdated','commodityUpdated','m7Updated','cvdUpdated','kimchiUpdated','liqUpdated','warUpdated','mvrvUpdated','whaleUpdated'].forEach(id=>ts(id, serverTime));
+    // 천체 데이터 자동 업데이트
+    if(data.celestial&&data.celestial.planets){
+      const pg=$('planetGrid');
+      if(pg) pg.innerHTML=data.celestial.planets.map(p=>
+        `<div class="planet-card"><div class="planet-symbol">${p.symbol}</div><div class="planet-name">${p.name}</div><div class="planet-sign">${p.sign}</div><div class="planet-deg">${p.degree}</div></div>`
+      ).join('');
+      const mi=$('moonPhaseInfo');
+      if(mi) mi.innerHTML=`${data.celestial.moon_phase_name} · 조도 ${Math.round(data.celestial.moon_phase)}% · 태양궁 ${data.celestial.sun_sign}<br><span style="font-size:11px;color:var(--text2)">다음 신월: ${data.celestial.next_new_moon?.slice(0,11)||'--'} · 다음 보름달: ${data.celestial.next_full_moon?.slice(0,11)||'--'}</span>`;
+      if($('astroDateLabel')) $('astroDateLabel').textContent = data.celestial.updated ? new Date(data.celestial.updated).toLocaleDateString('ko-KR') : '--';
+    }
     // Wall Street Buzz 자동 업데이트 + 번역
     if(data.wallstreet_buzz&&data.wallstreet_buzz.length){
       const ws=$('wallStreetBuzz');
