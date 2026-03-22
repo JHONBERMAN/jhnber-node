@@ -336,8 +336,15 @@ def collect_fred_and_dominance():
 
 # ── SLOW: OKX 파생 데이터 ─────────────────────────────
 
+_cvd_cache = {"data": None, "last": 0}
+
 def collect_okx(btc_price):
-    """OKX → 펀딩레이트, 롱/쇼트, CVD (체급별)"""
+    """OKX → 펀딩레이트, 롱/쇼트, CVD (체급별)
+    
+    펀딩/롱쇼트: 5분마다
+    CVD: 30분 캐시 (24h 누적이라 자주 갱신 불필요)
+    """
+    global _cvd_cache
     print("  🔶 OKX 파생…")
     out = {}
 
@@ -358,49 +365,56 @@ def collect_okx(btc_price):
             out["short_pct"] = 100 - out["long_pct"]
     time.sleep(0.3)
 
-    # CVD (Taker Volume) — 24h 기준 순매수/순매도
-    # OKX taker-volume 응답: [timestamp, buyVol(USD), sellVol(USD)]
-    data = fetch_json("https://www.okx.com/api/v5/rubik/stat/taker-volume?ccy=BTC&instType=CONTRACTS&period=1D")
-    if data and data.get("data"):
-        try:
-            row = data["data"][0]
-            total_buy = safe_float(row[1])   # USD
-            total_sell = safe_float(row[2])   # USD
-            net = total_buy - total_sell      # USD 순매수
+    # CVD — 30분 캐시
+    now = time.time()
+    if _cvd_cache["data"] and (now - _cvd_cache["last"]) < 1800:
+        out["cvd"] = _cvd_cache["data"]
+        print("    ✓ CVD (캐시, 30분)")
+    else:
+        data = fetch_json("https://www.okx.com/api/v5/rubik/stat/taker-volume?ccy=BTC&instType=CONTRACTS&period=1D")
+        if data and data.get("data"):
+            try:
+                row = data["data"][0]
+                total_buy = safe_float(row[1])
+                total_sell = safe_float(row[2])
+                net = total_buy - total_sell
 
-            # 체급별 추산 (비율 기반)
-            whale = net * 0.45
-            shark = net * 0.25
-            fish = net * -0.10
-            shrimp = net * -0.10
-            net_usd = round(net)
+                whale = net * 0.45
+                shark = net * 0.25
+                fish = net * -0.10
+                shrimp = net * -0.10
+                net_usd = round(net)
 
-            if net > 0:
-                analysis = (
-                    f'<span style="color:var(--green);font-weight:700;">매수 우세</span>'
-                    f' — 24h 순매수 ${abs(net_usd) / 1e6:.1f}M.'
-                )
-            else:
-                analysis = (
-                    f'<span style="color:var(--red);font-weight:700;">매도 우세</span>'
-                    f' — 24h 순매도 ${abs(net_usd) / 1e6:.1f}M.'
-                )
+                if net > 0:
+                    analysis = (
+                        f'<span style="color:var(--green);font-weight:700;">매수 우세</span>'
+                        f' — 24h 순매수 ${abs(net_usd) / 1e6:.1f}M.'
+                    )
+                else:
+                    analysis = (
+                        f'<span style="color:var(--red);font-weight:700;">매도 우세</span>'
+                        f' — 24h 순매도 ${abs(net_usd) / 1e6:.1f}M.'
+                    )
 
-            out["cvd"] = {
-                "total": net_usd,
-                "whale": round(whale),
-                "shark": round(shark),
-                "fish": round(fish),
-                "shrimp": round(shrimp),
-                "buy_volume": round(total_buy),
-                "sell_volume": round(total_sell),
-                "btc_price": btc_price,
-                "source": "OKX 24h",
-                "analysis": analysis,
-            }
-            print(f"    ✓ CVD: ${net_usd / 1e6:.1f}M ({'매수' if net > 0 else '매도'})")
-        except (IndexError, TypeError) as e:
-            print(f"    ⚠ CVD 파싱 에러: {e}")
+                cvd_data = {
+                    "total": net_usd,
+                    "whale": round(whale),
+                    "shark": round(shark),
+                    "fish": round(fish),
+                    "shrimp": round(shrimp),
+                    "buy_volume": round(total_buy),
+                    "sell_volume": round(total_sell),
+                    "btc_price": btc_price,
+                    "source": "OKX 24h",
+                    "analysis": analysis,
+                }
+                out["cvd"] = cvd_data
+                _cvd_cache = {"data": cvd_data, "last": now}
+                print(f"    ✓ CVD: ${net_usd / 1e6:.1f}M ({'매수' if net > 0 else '매도'}) [갱신]")
+            except (IndexError, TypeError) as e:
+                print(f"    ⚠ CVD 파싱 에러: {e}")
+                if _cvd_cache["data"]:
+                    out["cvd"] = _cvd_cache["data"]
 
     return out
 
