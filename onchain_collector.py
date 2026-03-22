@@ -403,9 +403,44 @@ def collect_okx(btc_price):
                     "buy_volume": round(total_buy),
                     "sell_volume": round(total_sell),
                     "btc_price": btc_price,
-                    "source": "OKX 24h",
+                    "source": "OKX 24h + Hyperliquid",
                     "analysis": analysis,
                 }
+
+                # ── Hyperliquid 리더보드 → 체급별 포지션 ──
+                try:
+                    lb = hl_post("leaderboard")
+                    if lb and isinstance(lb, list):
+                        whale_net = 0  # 상위 10 (100+ BTC급)
+                        shark_net = 0  # 11~30위 (10~100 BTC급)
+                        fish_net = 0   # 31~60위
+                        shrimp_net = 0 # 나머지
+
+                        for i, trader in enumerate(lb[:80]):
+                            pnl = safe_float(trader.get("accountValue", 0))
+                            # 포지션 방향 추정: windowPnl > 0 = 롱 우세
+                            window_pnl = safe_float(trader.get("windowPnl", 0))
+                            position_sign = 1 if window_pnl >= 0 else -1
+                            position_size = abs(pnl) * position_sign
+
+                            if i < 10:
+                                whale_net += position_size
+                            elif i < 30:
+                                shark_net += position_size
+                            elif i < 60:
+                                fish_net += position_size
+                            else:
+                                shrimp_net += position_size
+
+                        cvd_data["whale"] = round(whale_net)
+                        cvd_data["shark"] = round(shark_net)
+                        cvd_data["fish"] = round(fish_net)
+                        cvd_data["shrimp"] = round(shrimp_net)
+                        cvd_data["source"] = "OKX CVD + Hyperliquid 리더보드"
+                        print(f"    ✓ HL 리더보드 체급별: 🐋{whale_net/1e6:.1f}M 🦈{shark_net/1e6:.1f}M")
+                except Exception as e:
+                    print(f"    ⚠ HL 리더보드: {e}")
+
                 out["cvd"] = cvd_data
                 _cvd_cache = {"data": cvd_data, "last": now}
                 print(f"    ✓ CVD: ${net_usd / 1e6:.1f}M ({'매수' if net > 0 else '매도'}) [갱신]")
@@ -738,9 +773,21 @@ def _scan_hotspot(hotspot):
     }
 
 
+_war_cache = {"data": None, "last": 0}
+
 def collect_war_index():
-    """전쟁지수 v2 — 가중치 키워드 + 다중 소스 + 핫스팟 자동 스캔"""
-    print("  ⚔️ 전쟁지수 v2…")
+    """전쟁지수 v2 — 가중치 키워드 + 다중 소스 + 핫스팟 자동 스캔
+    
+    1시간 캐시 (지정학적 상황은 분 단위로 안 바뀜)
+    """
+    global _war_cache
+    now = time.time()
+
+    if _war_cache["data"] and (now - _war_cache["last"]) < 3600:
+        print("  ⚔️ 전쟁지수… (캐시, 1h)")
+        return _war_cache["data"]
+
+    print("  ⚔️ 전쟁지수 v2… (갱신)")
     total_score = 0
     all_matched = []
 
@@ -806,7 +853,7 @@ def collect_war_index():
     if top_keywords:
         print(f"    🔑 상위 키워드: {', '.join(f'{k}({v['count']})' for k, v in top_keywords[:5])}")
 
-    return {
+    result = {
         "value": composite,
         "label": label,
         "keyword_count": sum(v["count"] for v in keyword_summary.values()),
@@ -815,6 +862,8 @@ def collect_war_index():
         "hotspots": hotspots,
         "top_keywords": [{"keyword": k, "count": v["count"], "weight": v["weight"]} for k, v in top_keywords],
     }
+    _war_cache = {"data": result, "last": time.time()}
+    return result
 
 
 # ── SLOW: CNN Fear & Greed ────────────────────────────
@@ -1819,25 +1868,109 @@ def collect_trump_truth():
 
 
 def collect_whales():
-    """고래 알림 수집 — 3단 폴백
+    """고래 알림 수집 — Blockchair (무료) + Whale Alert (유료 키 있으면)
     
-    1차: Whale Alert API (키 있으면)
-    2차: Whale Alert Twitter RSS (nitter 프록시)
-    3차: 데모 데이터
+    1차: Blockchair API (무료, 일 30,000회) — BTC/ETH 대형 TX
+    2차: Whale Alert API (키 있으면 보충)
     """
+    print("  🐋 고래 알림 (Blockchair)…")
+    alerts = []
+    usdt_to_exchange = 0
+    usdc_to_exchange = 0
 
-    # ── 1차: Whale Alert API (키 있으면) ──
-    if WHALE_KEY and WHALE_KEY != "YOUR_KEY":
-        since = int(time.time()) - 3600
-        data = fetch_json(
-            f"https://api.whale-alert.io/v1/transactions?"
-            f"api_key={WHALE_KEY}&min_value=500000&start={since}"
+    # ── 1차: Blockchair BTC 대형 거래 ──
+    try:
+        btc_data = fetch_json(
+            "https://api.blockchair.com/bitcoin/transactions?s=output_total(desc)&limit=10"
         )
-        txs = data.get("transactions", []) if data else []
-        if txs:
-            alerts = []
-            usdt_to_exchange = 0
-            usdc_to_exchange = 0
+        if btc_data and btc_data.get("data"):
+            for tx in btc_data["data"]:
+                output_sat = tx.get("output_total", 0)
+                output_btc = output_sat / 1e8
+                # BTC 가격 대략 추정 (정확한 값은 HL에서 가져오지만 여기선 독립적)
+                # 실제 가격은 프론트에서 보정 가능
+                output_usd = output_btc * 87000
+
+                if output_usd < 1_000_000:  # $1M 이상만
+                    continue
+
+                ts_str = tx.get("time", "")
+                ts = int(time.time())
+                if ts_str:
+                    try:
+                        from datetime import datetime as dt2
+                        ts = int(dt2.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp())
+                    except Exception:
+                        pass
+
+                alerts.append({
+                    "symbol": "BTC",
+                    "amount": round(output_btc, 4),
+                    "amount_usd": round(output_usd),
+                    "from": tx.get("hash", "")[:12] + "…",
+                    "to": "BTC TX",
+                    "timestamp": ts,
+                    "source": "Blockchair",
+                })
+            btc_count = sum(1 for a in alerts if a["symbol"] == "BTC")
+            if btc_count:
+                print(f"    ✓ Blockchair BTC: {btc_count}건")
+    except Exception as e:
+        print(f"    ⚠ Blockchair BTC: {e}")
+
+    time.sleep(0.3)
+
+    # ── Blockchair ETH 대형 거래 ──
+    try:
+        eth_data = fetch_json(
+            "https://api.blockchair.com/ethereum/transactions?s=value(desc)&limit=10"
+        )
+        if eth_data and eth_data.get("data"):
+            for tx in eth_data["data"]:
+                value_raw = tx.get("value", 0)
+                # Blockchair ETH value는 wei 단위
+                value_eth = value_raw / 1e18 if value_raw > 1e15 else value_raw
+                value_usd = value_eth * 2100
+
+                if value_usd < 1_000_000:
+                    continue
+
+                recipient = (tx.get("recipient", "") or "Unknown")[:16]
+                sender = (tx.get("sender", "") or "Unknown")[:16]
+
+                ts_str = tx.get("time", "")
+                ts = int(time.time())
+                if ts_str:
+                    try:
+                        from datetime import datetime as dt2
+                        ts = int(dt2.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp())
+                    except Exception:
+                        pass
+
+                alerts.append({
+                    "symbol": "ETH",
+                    "amount": round(value_eth, 2),
+                    "amount_usd": round(value_usd),
+                    "from": sender,
+                    "to": recipient,
+                    "timestamp": ts,
+                    "source": "Blockchair",
+                })
+            eth_count = sum(1 for a in alerts if a["symbol"] == "ETH")
+            if eth_count:
+                print(f"    ✓ Blockchair ETH: {eth_count}건")
+    except Exception as e:
+        print(f"    ⚠ Blockchair ETH: {e}")
+
+    # ── 2차: Whale Alert API (키 있으면, 스테이블코인 추적 보충) ──
+    if WHALE_KEY and WHALE_KEY != "YOUR_KEY":
+        try:
+            since = int(time.time()) - 3600
+            data = fetch_json(
+                f"https://api.whale-alert.io/v1/transactions?"
+                f"api_key={WHALE_KEY}&min_value=500000&start={since}"
+            )
+            txs = data.get("transactions", []) if data else []
             for tx in txs:
                 sym = tx.get("symbol", "?").upper()
                 usd = tx.get("amount_usd", 0)
@@ -1848,105 +1981,26 @@ def collect_whales():
                         usdc_to_exchange += usd
                 alerts.append({
                     "symbol": sym, "amount": tx.get("amount", 0),
-                    "amount_usd": usd, "from": tx.get("from", "?"),
-                    "to": tx.get("to", "?"), "timestamp": tx.get("timestamp", 0),
+                    "amount_usd": usd,
+                    "from": tx.get("from", {}).get("owner", "Unknown")[:16],
+                    "to": tx.get("to", {}).get("owner", "Unknown")[:16],
+                    "timestamp": tx.get("timestamp", 0),
+                    "source": "Whale Alert",
                 })
-            alerts.sort(key=lambda x: x["amount_usd"], reverse=True)
-            print(f"    ✓ Whale Alert API: {len(alerts)}건")
-            return alerts[:15], usdt_to_exchange, usdc_to_exchange
-
-    # ── 2차: Whale Alert Twitter RSS 파싱 ──
-    print("  🐋 Whale RSS 시도…")
-    rss_urls = [
-        "https://nitter.net/whale_alert/rss",
-        "https://nitter.privacydev.net/whale_alert/rss",
-        "https://nitter.poast.org/whale_alert/rss",
-    ]
-    
-    for rss_url in rss_urls:
-        raw = fetch_raw(rss_url, timeout=10)
-        if not raw or "<item>" not in raw:
-            continue
-        
-        try:
-            alerts = []
-            usdt_ex, usdc_ex = 0, 0
-            now_ts = int(time.time())
-            
-            # XML 간이 파싱 (feedparser 없이)
-            items = raw.split("<item>")[1:15]  # 최대 15개
-            for item in items:
-                title = ""
-                t_match = re.search(r"<title>(.*?)</title>", item, re.DOTALL)
-                if t_match:
-                    title = t_match.group(1).strip()
-                    # CDATA 제거
-                    title = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", title)
-                
-                if not title:
-                    continue
-                
-                # 트윗 파싱: "🚨 1,000 #BTC (69,000,000 USD) transferred from unknown wallet to #Binance"
-                amount_match = re.search(r"([\d,]+)\s*#?(\w+)\s*\(([\d,]+)\s*USD\)", title)
-                if not amount_match:
-                    continue
-                
-                amount = int(amount_match.group(1).replace(",", ""))
-                symbol = amount_match.group(2).upper()
-                amount_usd = int(amount_match.group(3).replace(",", ""))
-                
-                if amount_usd < 500000:
-                    continue
-                
-                # from/to 파싱
-                from_addr = "Unknown"
-                to_addr = "Unknown"
-                from_match = re.search(r"from\s+(?:#?(\w+[\s\w]*))", title, re.I)
-                to_match = re.search(r"to\s+(?:#?(\w+[\s\w]*))", title, re.I)
-                if from_match:
-                    from_addr = from_match.group(1).strip()[:20]
-                if to_match:
-                    to_addr = to_match.group(1).strip()[:20]
-                
-                # 타임스탬프
-                pub_match = re.search(r"<pubDate>(.*?)</pubDate>", item)
-                ts = now_ts
-                if pub_match:
-                    try:
-                        from email.utils import parsedate_to_datetime
-                        ts = int(parsedate_to_datetime(pub_match.group(1)).timestamp())
-                    except Exception:
-                        pass
-                
-                alert = {
-                    "symbol": symbol, "amount": amount,
-                    "amount_usd": amount_usd,
-                    "from": from_addr, "to": to_addr,
-                    "timestamp": ts,
-                }
-                
-                # 스테이블코인 거래소 유입 추적
-                to_lower = to_addr.lower()
-                is_exchange = any(ex in to_lower for ex in ["binance", "coinbase", "kraken", "okx", "bybit", "huobi", "bitfinex", "upbit"])
-                if is_exchange:
-                    if symbol == "USDT":
-                        usdt_ex += amount_usd
-                    elif symbol == "USDC":
-                        usdc_ex += amount_usd
-                
-                alerts.append(alert)
-            
-            if alerts:
-                alerts.sort(key=lambda x: x["amount_usd"], reverse=True)
-                print(f"    ✓ Whale RSS: {len(alerts)}건 파싱")
-                return alerts[:15], usdt_ex, usdc_ex
+            if txs:
+                print(f"    ✓ Whale Alert API: {len(txs)}건 보충")
         except Exception as e:
-            print(f"    ⚠ RSS 파싱 에러: {e}")
-            continue
+            print(f"    ⚠ Whale Alert: {e}")
 
-    # ── 3차: 전체 실패 시 빈 배열 반환 (가짜 데이터 없음) ──
-    print("    ⚠ Whale 전체 실패 — 데이터 없음")
-    return [], 0, 0
+    # 정렬 + 반환
+    alerts.sort(key=lambda x: x["amount_usd"], reverse=True)
+    result = alerts[:15]
+    total = len(result)
+    if total:
+        print(f"    ✓ 고래 총 {total}건 수집")
+    else:
+        print("    ⚠ 고래 데이터 없음")
+    return result, usdt_to_exchange, usdc_to_exchange
 
 
 # ── 메인 수집 루프 ────────────────────────────────────
