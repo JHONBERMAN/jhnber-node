@@ -606,27 +606,31 @@ def run_once():
     # 9) CNN 공포탐욕 (미장)
     cnn_fg = fetch_cnn_fear_greed()
 
-    # 결과 조합
+    # 결과 조합 (null 방지 — 실패 시 기본값)
     result = {
-        "market": market,
-        "funding": {
-            "rate": binance.get("funding_rate"),
-            "rate_str": binance.get("funding_str", "--"),
-            "long_pct": binance.get("long_pct"),
-            "short_pct": binance.get("short_pct"),
+        "market": market or {},
+        "fed_watch": {
+            "rate": market.get("fed_rate", 4.50) if market else 4.50,
+            "treasury_10y": market.get("treasury_10y", 4.2) if market else 4.2,
         },
-        "cvd": binance.get("cvd"),
-        "whale_alerts": whale_alerts,
+        "funding": {
+            "rate": binance.get("funding_rate", 0) if binance else 0,
+            "rate_str": binance.get("funding_str", "0.00%") if binance else "0.00%",
+            "long_pct": binance.get("long_pct", 50) if binance else 50,
+            "short_pct": binance.get("short_pct", 50) if binance else 50,
+        },
+        "cvd": binance.get("cvd", {}) if binance else {},
+        "whale_alerts": whale_alerts or [],
         "stablecoin_inflow": {
             "usdt": usdt, "usdc": usdc,
             "total": usdt + usdc, "max_reference": 500000000,
         },
-        "altseason": altseason,
-        "kimchi": kimchi,
-        "liquidation": liquidation,
-        "war_index": war_index,
-        "mvrv": mvrv,
-        "cnn_fear_greed": cnn_fg,
+        "altseason": altseason or 50,
+        "kimchi": kimchi or {"premium": 0, "btc_krw": 0, "btc_global_krw": 0, "krw_rate": 1350},
+        "liquidation": liquidation or {"current_price": 0, "open_interest": 0, "price_high": 0, "price_low": 0, "long_liq_zone": {"start": 0, "end": 0, "description": "대기중"}, "short_liq_zone": {"start": 0, "end": 0, "description": "대기중"}, "magnet_price": 0},
+        "war_index": war_index or {"value": 50, "label": "UNKNOWN", "keyword_count": 0},
+        "mvrv": mvrv or {"value": 2.0, "analysis": "데이터 수집 지연"},
+        "cnn_fear_greed": cnn_fg or {"score": 50, "rating": "NEUTRAL", "previous_close": 50, "one_week_ago": 50, "one_month_ago": 50},
         "last_updated": datetime.now(timezone.utc).isoformat(),
     }
 
