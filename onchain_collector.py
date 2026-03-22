@@ -76,24 +76,12 @@ def fetch_json(url, timeout=20):
     return None
 
 
-def hl_post(req_type):
-    """Hyperliquid info API POST"""
-    payload = json.dumps({"type": req_type}).encode()
-    return fetch_json.__wrapped__(payload) if False else None  # noqa
-    # 직접 구현:
-    raw = fetch_raw("https://api.hyperliquid.xyz/info", post_data=payload)
-    if raw:
-        try:
-            return json.loads(raw)
-        except (json.JSONDecodeError, ValueError):
-            pass
-    return None
-
-
-# hl_post 직접 구현 (위의 데코레이터 방식 제거)
-def hl_post(req_type):
-    """Hyperliquid info API POST"""
-    payload = json.dumps({"type": req_type}).encode()
+def hl_post(req_type, dex=""):
+    """Hyperliquid info API POST (dex 파라미터 지원)"""
+    body = {"type": req_type}
+    if dex:
+        body["dex"] = dex
+    payload = json.dumps(body).encode()
     raw = fetch_raw("https://api.hyperliquid.xyz/info", post_data=payload)
     if raw:
         try:
@@ -147,28 +135,53 @@ M7_MAP = {
 
 
 def collect_hl_prices():
-    """Hyperliquid allMids → 크립토/원자재/지수 가격"""
+    """Hyperliquid allMids → 크립토/원자재/지수 가격
+    
+    기본 dex(빈 문자열)는 네이티브 퍼프만 반환.
+    HIP-3 심볼(원자재/주식/지수)은 각 dex를 개별 쿼리해야 함.
+    """
     print("  ⚡ Hyperliquid…")
-    mids = hl_post("allMids")
+
+    # 1단계: 기본 퍼프 (BTC, ETH, SOL 등)
+    mids = hl_post("allMids") or {}
     if not mids:
-        print("    ⚠ HL 응답 없음")
+        print("    ⚠ HL 기본 dex 응답 없음")
+
+    # 2단계: HIP-3 dex들 (xyz, cash, flx) 개별 쿼리 → 병합
+    HIP3_DEXES = ["xyz", "cash", "flx"]
+    hip3_count = 0
+    for dex_name in HIP3_DEXES:
+        dex_mids = hl_post("allMids", dex=dex_name)
+        if dex_mids:
+            new_keys = 0
+            for sym, px in dex_mids.items():
+                full_key = f"{dex_name}:{sym}" if ":" not in sym else sym
+                if full_key not in mids:
+                    mids[full_key] = px
+                    new_keys += 1
+            hip3_count += new_keys
+            if new_keys:
+                print(f"    📡 {dex_name}: +{new_keys}개 심볼")
+
+    if not mids:
+        print("    ⚠ HL 전체 응답 없음")
         return {}
 
     out = {}
 
-    # 1) 네이티브 크립토
+    # 3단계: 네이티브 크립토
     for key, sym in CRYPTO_MAP.items():
         if sym in mids:
             out[key] = round(safe_float(mids[sym]), 2)
 
-    # 2) HIP-3 원자재/지수
+    # 4단계: HIP-3 원자재/지수
     for key, candidates in HIP3_MAP.items():
         for sym in candidates:
             if sym in mids:
                 out[key] = round(safe_float(mids[sym]), 2)
                 break
 
-    # 3) M7 빅테크
+    # 5단계: M7 빅테크
     m7 = []
     for stock, candidates in M7_MAP.items():
         for sym in candidates:
@@ -177,7 +190,7 @@ def collect_hl_prices():
                 break
     out["m7"] = m7
 
-    # 4) HL OI + 펀딩 (metaAndAssetCtxs)
+    # 6단계: HL OI + 펀딩 (metaAndAssetCtxs)
     meta = hl_post("metaAndAssetCtxs")
     if meta and len(meta) >= 2:
         for ctx in meta[1]:
@@ -189,12 +202,14 @@ def collect_hl_prices():
 
     # 통계
     price_keys = [k for k in out if k not in ("m7", "hl_btc_oi", "hl_btc_funding", "hl_btc_mark")]
-    print(f"    ✓ {len(price_keys)}개 가격 수집")
+    print(f"    ✓ 크립토+HIP-3 합계 {len(price_keys)}개 가격 | HIP-3 {hip3_count}개 심볼 발견")
 
     # 디버그: HIP-3 심볼 목록
     hip3_syms = sorted(k for k in mids if ":" in k)
     if hip3_syms:
-        print(f"    📋 HIP-3 {len(hip3_syms)}개: {', '.join(hip3_syms[:25])}…")
+        print(f"    📋 HIP-3 심볼: {', '.join(hip3_syms[:30])}{'…' if len(hip3_syms)>30 else ''}")
+    else:
+        print("    ⚠ HIP-3 심볼 0개 — dex 응답 없거나 심볼 형식 불일치")
 
     return out
 
@@ -454,23 +469,56 @@ def collect_war_index():
 # ── SLOW: CNN Fear & Greed ────────────────────────────
 
 def collect_cnn_fg():
-    """CNN Fear & Greed Index"""
+    """CNN Fear & Greed Index — 다중 폴백 전략
+    
+    1차: production.dataviz.cnn.io/index/fearandgreed/graphdata (기본)
+    2차: 같은 URL + 날짜 파라미터 (봇 차단 우회)
+    3차: /current 엔드포인트 시도
+    """
     print("  😱 CNN F&G…")
-    data = fetch_json("https://production.dataviz.cnn.io/index/fearandgreed/graphdata")
-    if data and data.get("fear_and_greed"):
+
+    # 전용 헤더 (CNN은 봇 필터링이 까다로움)
+    cnn_headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://edition.cnn.com/markets/fear-and-greed",
+        "Origin": "https://edition.cnn.com",
+    }
+
+    urls = [
+        "https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
+        f"https://production.dataviz.cnn.io/index/fearandgreed/graphdata/"
+        f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
+    ]
+
+    for url in urls:
         try:
-            fg = data["fear_and_greed"]
-            score = round(fg.get("score", 0))
-            print(f"    ✓ {score}")
-            return {
-                "score": score,
-                "rating": fg.get("rating", ""),
-                "previous_close": round(fg.get("previous_close", 0)),
-                "one_week_ago": round(fg.get("previous_1_week", 0)),
-                "one_month_ago": round(fg.get("previous_1_month", 0)),
-            }
-        except (KeyError, TypeError):
-            pass
+            req = Request(url, headers=cnn_headers)
+            raw = urlopen(req, timeout=15).read().decode()
+            data = json.loads(raw)
+            if data and data.get("fear_and_greed"):
+                fg = data["fear_and_greed"]
+                score = round(fg.get("score", 0))
+                rating = fg.get("rating", "")
+                print(f"    ✓ CNN F&G: {score} ({rating})")
+                return {
+                    "score": score,
+                    "rating": rating,
+                    "previous_close": round(fg.get("previous_close", 0)),
+                    "one_week_ago": round(fg.get("previous_1_week", 0)),
+                    "one_month_ago": round(fg.get("previous_1_month", 0)),
+                }
+        except Exception as e:
+            status = ""
+            if hasattr(e, "code"):
+                status = f" (HTTP {e.code})"
+            print(f"    ⚠ CNN {url[:60]}…{status} {e}")
+            continue
+
+    print("    ❌ CNN F&G 전체 실패")
     return None
 
 

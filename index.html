@@ -4,10 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>X-INTELLIGENCE : JHONBER — NODE</title>
+<!-- Preconnect: DNS + TLS 선제 연결 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"></noscript>
+<link rel="preconnect" href="https://api.coingecko.com">
+<link rel="preconnect" href="https://api.exchangerate-api.com">
+<link rel="preconnect" href="https://api.alternative.me">
+<link rel="preconnect" href="https://web-production-bccbf.up.railway.app">
+<link rel="dns-prefetch" href="https://api.coingecko.com">
+<link rel="dns-prefetch" href="https://web-production-bccbf.up.railway.app">
+<!-- Fonts: swap 방식 + 최소 weight만 로드 -->
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Noto+Sans+KR:wght@300;400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Noto+Sans+KR:wght@300;400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"></noscript>
 <style>
 /* ── Design Tokens ── */
 :root {
@@ -171,6 +179,10 @@ h1{font-family:'Cinzel Decorative',serif;font-size:clamp(24px,4vw,48px);backgrou
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes skeletonPulse{0%,100%{opacity:.4}50%{opacity:1}}
 .loading-pulse{animation:skeletonPulse 1.5s ease-in-out infinite}
+@keyframes skeletonShimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}
+.skeleton{background:linear-gradient(90deg,rgba(201,168,76,.06) 25%,rgba(201,168,76,.12) 50%,rgba(201,168,76,.06) 75%);background-size:200px 100%;animation:skeletonShimmer 1.2s infinite linear;border-radius:4px;height:18px;margin:6px 0}
+.skeleton-wide{width:80%}.skeleton-short{width:40%}.skeleton-full{width:100%}
+.stat-num.skeleton-val{color:transparent!important;background:linear-gradient(90deg,rgba(201,168,76,.08) 25%,rgba(201,168,76,.15) 50%,rgba(201,168,76,.08) 75%);background-size:200px 100%;animation:skeletonShimmer 1.2s infinite linear;border-radius:3px}
 .disclaimer{text-align:center;font-size:10px;color:rgba(144,144,176,.4);padding:20px;letter-spacing:1px}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:var(--bg)}
@@ -863,19 +875,125 @@ window.filterNews = function(el, cat) {
 };
 
 // ═══════════════════════════════════════════════════════
-// INIT
+// INIT — Speed Optimized v6.1
 // ═══════════════════════════════════════════════════════
 
+// Phase 1: DOM build (synchronous, instant)
 buildNavTabs();
 buildAllPanels();
 updateTime();
 setInterval(updateTime, 1000);
 buildCalendar();
 
-// Data fetch
-Promise.allSettled([fetchCrypto(), fetchForex(), fetchFearGreed(), fetchOnchainData()]);
+// Phase 2: Skeleton state — show shimmer on key vitals
+(function initSkeletons() {
+  ['ovBtcPrice','ovSpx','ovNdx','ovKospi'].forEach(id => {
+    const el = $(id);
+    if (el && (el.textContent === '--' || el.textContent === '')) {
+      el.textContent = '---';
+      el.classList.add('skeleton-val');
+    }
+  });
+})();
 
-// Auto-refresh intervals
+// Phase 3: Stale-While-Revalidate — localStorage 캐시로 즉시 렌더
+const CACHE_KEYS = {crypto:'jn_crypto',forex:'jn_forex',fg:'jn_fg',onchain:'jn_onchain'};
+const CACHE_TTL = {crypto:60000,forex:120000,fg:600000,onchain:120000}; // ms
+
+function cacheSet(key, data) {
+  try { localStorage.setItem(key, JSON.stringify({t:Date.now(),d:data})); } catch(e) {}
+}
+function cacheGet(key, ttl) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const {t, d} = JSON.parse(raw);
+    if (Date.now() - t > ttl * 3) return null; // 3x TTL 넘으면 폐기
+    return {data: d, fresh: Date.now() - t <= ttl};
+  } catch(e) { return null; }
+}
+
+// Wrap fetch functions with caching
+const _origFetchCrypto = fetchCrypto;
+const _origFetchForex = fetchForex;
+const _origFetchFearGreed = fetchFearGreed;
+const _origFetchOnchainData = fetchOnchainData;
+
+// Crypto cache wrapper
+fetchCrypto = async function() {
+  await _origFetchCrypto();
+  // Cache the visible state after successful fetch
+  try {
+    const btcEl = $('ovBtcPrice');
+    if (btcEl && btcEl.textContent !== '---' && btcEl.textContent !== '--') {
+      cacheSet(CACHE_KEYS.crypto, {
+        btc: btcEl.textContent,
+        btcChg: $('ovBtcChange')?.textContent || '',
+        btcCls: $('ovBtcChange')?.className || '',
+        eth: $('ovEthMini')?.textContent || '',
+        sol: $('ovSol')?.textContent || '',
+        xrp: $('ovXrp')?.textContent || '',
+      });
+    }
+  } catch(e) {}
+};
+
+// Onchain cache wrapper
+fetchOnchainData = async function() {
+  await _origFetchOnchainData();
+  try {
+    const spx = $('ovSpx');
+    if (spx && spx.textContent !== '---' && spx.textContent !== '--') {
+      cacheSet(CACHE_KEYS.onchain, {
+        spx: spx.textContent, spxChg: $('ovSpxChange')?.textContent,
+        ndx: $('ovNdx')?.textContent, ndxChg: $('ovNdxChange')?.textContent,
+        kospi: $('ovKospi')?.textContent, kospiChg: $('ovKospiChange')?.textContent,
+        funding: $('ovFunding')?.textContent,
+        longShort: $('ovLongShort')?.textContent,
+      });
+    }
+  } catch(e) {}
+};
+
+// Phase 4: Instant restore from cache
+(function restoreFromCache() {
+  const cc = cacheGet(CACHE_KEYS.crypto, CACHE_TTL.crypto);
+  if (cc) {
+    const d = cc.data;
+    const btcEl = $('ovBtcPrice');
+    if (btcEl && d.btc) { btcEl.textContent = d.btc; btcEl.classList.remove('skeleton-val'); btcEl.className = 'stat-num ' + (d.btcCls?.includes('up') ? 'up' : 'down'); }
+    if (d.btcChg && $('ovBtcChange')) { $('ovBtcChange').textContent = d.btcChg; }
+    if (d.eth && $('ovEthMini')) $('ovEthMini').textContent = d.eth;
+    if (d.sol && $('ovSol')) $('ovSol').textContent = d.sol;
+    if (d.xrp && $('ovXrp')) $('ovXrp').textContent = d.xrp;
+  }
+  const oc = cacheGet(CACHE_KEYS.onchain, CACHE_TTL.onchain);
+  if (oc) {
+    const d = oc.data;
+    [['ovSpx','spx','ovSpxChange','spxChg'],['ovNdx','ndx','ovNdxChange','ndxChg'],['ovKospi','kospi','ovKospiChange','kospiChg']].forEach(([pid,pk,cid,ck]) => {
+      const el = $(pid);
+      if (el && d[pk]) { el.textContent = d[pk]; el.classList.remove('skeleton-val'); }
+      if (d[ck] && $(cid)) $(cid).textContent = d[ck];
+    });
+    if (d.funding && $('ovFunding')) $('ovFunding').textContent = d.funding;
+    if (d.longShort && $('ovLongShort')) $('ovLongShort').textContent = d.longShort;
+  }
+})();
+
+// Phase 5: Remove skeletons after real data arrives
+function clearSkeletons() {
+  $$('.skeleton-val').forEach(el => el.classList.remove('skeleton-val'));
+}
+
+// Phase 6: Parallel fetch — 4개 API 동시 발사, 각각 독립 완료
+Promise.allSettled([
+  fetchCrypto().then(clearSkeletons),
+  fetchForex(),
+  fetchFearGreed(),
+  fetchOnchainData().then(clearSkeletons),
+]);
+
+// Phase 7: Auto-refresh intervals
 setInterval(fetchCrypto, 30000);
 setInterval(fetchForex, 60000);
 setInterval(fetchFearGreed, 300000);
