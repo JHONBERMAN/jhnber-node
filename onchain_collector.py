@@ -1569,6 +1569,99 @@ def _parse_rss_items(raw, handle, display_name, emoji, max_items=5):
     return posts
 
 
+# ── SLOW: 트럼프 트루스소셜 (Google News RSS) ────────
+
+def collect_trump_truth():
+    """트럼프 트루스소셜 포스트 수집 — Google News 키워드 스캔
+    
+    트루스소셜은 공식 API/RSS 없음.
+    뉴스 매체가 트럼프 포스트를 실시간 보도하므로
+    Google News RSS로 1~5분 딜레이 수집.
+    """
+    print("  🇺🇸 트럼프 트루스소셜…")
+
+    queries = [
+        "Trump Truth Social post",
+        "Trump posted Truth Social",
+        "Trump says Truth Social",
+        "Trump Truth Social statement",
+    ]
+
+    posts = []
+    seen_titles = set()
+    now_ts = int(time.time())
+
+    for query in queries:
+        q = query.replace(" ", "+")
+        url = f"https://news.google.com/rss/search?q={q}+when:1d&hl=en&gl=US&ceid=US:en"
+        raw = fetch_raw(url, timeout=8)
+        if not raw or "<item>" not in raw:
+            continue
+
+        items = raw.split("<item>")[1:6]  # 쿼리당 최대 5개
+        for item in items:
+            title = ""
+            t_match = re.search(r"<title>(.*?)</title>", item, re.DOTALL)
+            if t_match:
+                title = t_match.group(1).strip()
+                title = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", title)
+                title = re.sub(r"<[^>]+>", "", title).strip()[:200]
+
+            if not title or len(title) < 15:
+                continue
+
+            # 중복 제거 (유사 헤드라인 필터)
+            title_key = title[:60].lower()
+            if title_key in seen_titles:
+                continue
+            seen_titles.add(title_key)
+
+            # 링크
+            link = ""
+            l_match = re.search(r"<link>(.*?)</link>", item)
+            if l_match:
+                link = l_match.group(1).strip()
+
+            # 소스
+            source = ""
+            s_match = re.search(r"<source[^>]*>(.*?)</source>", item)
+            if s_match:
+                source = s_match.group(1).strip()
+
+            # 타임스탬프
+            ts = now_ts
+            pub_match = re.search(r"<pubDate>(.*?)</pubDate>", item)
+            if pub_match:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    ts = int(parsedate_to_datetime(pub_match.group(1)).timestamp())
+                except Exception:
+                    pass
+
+            # 12시간 이상 지난 건 제외
+            if now_ts - ts > 43200:
+                continue
+
+            posts.append({
+                "handle": "@realDonaldTrump",
+                "name": "Trump (Truth Social)",
+                "emoji": "🏛️",
+                "text": title,
+                "link": link,
+                "source": source,
+                "timestamp": ts,
+                "cat": "trump",
+            })
+
+        time.sleep(0.2)
+
+    # 시간순 정렬
+    posts.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+    result = posts[:10]  # 최대 10개
+    print(f"    ✓ 트럼프: {len(result)}건 수집")
+    return result
+
+
 def collect_whales():
     """고래 알림 수집 — 3단 폴백
     
@@ -1749,6 +1842,7 @@ def run_once():
         wallstreet = collect_wallstreet_buzz()
         x_feed = collect_x_feed()
         whales, usdt_inflow, usdc_inflow = collect_whales()
+        trump = collect_trump_truth()
         correlation = collect_correlation()
         econ_cal = collect_econ_calendar()
         cds = collect_cds()
@@ -1761,6 +1855,7 @@ def run_once():
             "stablecoin": stablecoin, "wallstreet": wallstreet,
             "x_feed": x_feed,
             "whales": whales, "usdt": usdt_inflow, "usdc": usdc_inflow,
+            "trump": trump,
             "correlation": correlation,
             "econ_cal": econ_cal,
             "cds": cds,
@@ -1831,6 +1926,8 @@ def run_once():
         "wallstreet_buzz": sc.get("wallstreet") or [],
 
         "x_feed": sc.get("x_feed") or [],
+
+        "trump_feed": sc.get("trump") or [],
 
         "celestial": sc.get("celestial") or {},
 
