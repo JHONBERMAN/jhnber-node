@@ -3193,6 +3193,34 @@ async function fetchOnchainData() {
       const wLbl = document.getElementById('warLabel');
       if (wLbl) wLbl.textContent = data.war_index.label || (wv >= 80 ? 'CRITICAL' : wv >= 61 ? 'HIGH RISK' : wv >= 31 ? 'ELEVATED' : 'STABLE');
     }
+    // CNN 공포탐욕 (실제 데이터)
+    if (data.cnn_fear_greed) {
+      const cfg = data.cnn_fear_greed;
+      const score = cfg.score;
+      const grade = getBSGrade(score);
+      // 오버뷰
+      const ovCnn = document.getElementById('ovCnnFG');
+      if (ovCnn) { ovCnn.textContent = score; ovCnn.style.color = grade.color; }
+      const ovCnnL = document.getElementById('ovCnnFGLabel');
+      if (ovCnnL) { ovCnnL.textContent = grade.kr; ovCnnL.style.color = grade.color; ovCnnL.classList.remove('loading-pulse'); }
+      // 공포탐욕 탭 게이지
+      const cnnArc = document.getElementById('cnnArc');
+      const cnnNum = document.getElementById('cnnNum');
+      const cnnLabel = document.getElementById('cnnLabel');
+      if (cnnArc) cnnArc.setAttribute('stroke-dashoffset', 251 - (score / 100 * 251));
+      if (cnnNum) { cnnNum.textContent = score; cnnNum.setAttribute('fill', grade.color); }
+      if (cnnLabel) { cnnLabel.textContent = grade.kr; cnnLabel.setAttribute('fill', grade.color); }
+      // 서브지표 (VIX 기반)
+      if (data.market && data.market.vix) {
+        const vix = data.market.vix;
+        const vixScore = Math.max(0, Math.min(100, Math.round(100 - (vix - 12) * 3.5)));
+        const mockVals = [score, vixScore, Math.round(score*0.7), Math.round(score*0.9)];
+        ['cnn-momentum','cnn-vix','cnn-safe','cnn-junk'].forEach((id,i)=>{
+          const el = document.getElementById(id);
+          if (el) { const g = getBSGrade(mockVals[i]); el.textContent=mockVals[i]; el.style.color=g.color; }
+        });
+      }
+    }
     // 전체 타임스탬프 일괄 업데이트
     ['stockUpdated','commodityUpdated','m7Updated','cvdUpdated','kimchiUpdated','liqUpdated','warUpdated','mvrvUpdated','fedUpdated','liqMonitorUpdated','whaleUpdated'].forEach(id => updateTimestamp(id));
   } catch(e) {

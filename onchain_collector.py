@@ -504,6 +504,38 @@ def fetch_war_index():
 
 
 # ═══════════════════════════════════════════
+# CNN 공포/탐욕 (미국 주식)
+# ═══════════════════════════════════════════
+def fetch_cnn_fear_greed():
+    """CNN Fear & Greed Index (미장) — 공개 API, 키 불필요"""
+    print("  😱 CNN F&G 수집 중...")
+    data = safe_json("https://production.dataviz.cnn.io/index/fearandgreed/graphdata/2026-03-01")
+    if data and data.get("fear_and_greed"):
+        fg = data["fear_and_greed"]
+        score = round(fg.get("score", 0))
+        rating = fg.get("rating", "")
+        
+        # 서브지표
+        indicators = {}
+        for key in ["market_momentum_sp500", "stock_price_strength", "stock_price_breadth", "put_call_options", "market_volatility_vix", "safe_haven_demand", "junk_bond_demand"]:
+            ind = data.get("fear_and_greed_historical", {}) if key not in data else data
+            # 개별 지표
+            if key in data:
+                indicators[key] = round(data[key].get("score", 0))
+        
+        print(f"    ✓ CNN F&G: {score} ({rating})")
+        return {
+            "score": score,
+            "rating": rating,
+            "previous_close": round(fg.get("previous_close", 0)),
+            "one_week_ago": round(fg.get("previous_1_week", 0)),
+            "one_month_ago": round(fg.get("previous_1_month", 0)),
+        }
+    print("    ⚠ CNN F&G 수집 실패")
+    return None
+
+
+# ═══════════════════════════════════════════
 # 메인 실행
 # ═══════════════════════════════════════════
 def run_once():
@@ -538,6 +570,9 @@ def run_once():
     # 8) MVRV
     mvrv = fetch_mvrv()
 
+    # 9) CNN 공포탐욕 (미장)
+    cnn_fg = fetch_cnn_fear_greed()
+
     # 결과 조합
     result = {
         "market": market,
@@ -558,6 +593,7 @@ def run_once():
         "liquidation": liquidation,
         "war_index": war_index,
         "mvrv": mvrv,
+        "cnn_fear_greed": cnn_fg,
         "last_updated": datetime.now(timezone.utc).isoformat(),
     }
 
