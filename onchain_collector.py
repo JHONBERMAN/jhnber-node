@@ -816,14 +816,24 @@ def collect_war_index():
 
 # ── SLOW: CNN Fear & Greed ────────────────────────────
 
+_cnn_fg_cache = {"data": None, "last": 0}
+
 def collect_cnn_fg():
     """CNN Fear & Greed Index — 다중 폴백 전략
     
+    하루 1회 갱신 (미국 장 마감 후 업데이트)
     1차: production.dataviz.cnn.io/index/fearandgreed/graphdata (기본)
     2차: 같은 URL + 날짜 파라미터 (봇 차단 우회)
     3차: /current 엔드포인트 시도
     """
-    print("  😱 CNN F&G…")
+    global _cnn_fg_cache
+    now = time.time()
+
+    if _cnn_fg_cache["data"] and (now - _cnn_fg_cache["last"]) < 86400:
+        print("  😱 CNN F&G… (캐시, 24h)")
+        return _cnn_fg_cache["data"]
+
+    print("  😱 CNN F&G… (갱신)")
 
     # 전용 헤더 (CNN은 봇 필터링이 까다로움)
     cnn_headers = {
@@ -852,13 +862,15 @@ def collect_cnn_fg():
                 score = round(fg.get("score", 0))
                 rating = fg.get("rating", "")
                 print(f"    ✓ CNN F&G: {score} ({rating})")
-                return {
+                result = {
                     "score": score,
                     "rating": rating,
                     "previous_close": round(fg.get("previous_close", 0)),
                     "one_week_ago": round(fg.get("previous_1_week", 0)),
                     "one_month_ago": round(fg.get("previous_1_month", 0)),
                 }
+                _cnn_fg_cache = {"data": result, "last": time.time()}
+                return result
         except Exception as e:
             status = ""
             if hasattr(e, "code"):
@@ -877,19 +889,24 @@ def collect_cnn_fg():
             rating = data.get("rating", "")
             hist = data.get("history", {})
             print(f"    ✓ CNN F&G (via PyPI): {score} ({rating})")
-            return {
+            result = {
                 "score": score,
                 "rating": rating,
                 "previous_close": round(hist.get("1w", 0)),
                 "one_week_ago": round(hist.get("1w", 0)),
                 "one_month_ago": round(hist.get("1m", 0)),
             }
+            _cnn_fg_cache = {"data": result, "last": time.time()}
+            return result
     except ImportError:
         print("    ⚠ fear-greed 미설치 — pip install fear-greed 필요")
     except Exception as e:
         print(f"    ⚠ fear-greed 패키지 에러: {e}")
 
     print("    ❌ CNN F&G 전체 실패")
+    if _cnn_fg_cache["data"]:
+        print("    ↩ 이전 캐시 반환")
+        return _cnn_fg_cache["data"]
     return None
 
 

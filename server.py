@@ -25,19 +25,35 @@ PORT = int(os.environ.get("PORT", 5000))
 # ── 캐시된 응답 (메모리) ──
 _cache = {"body": b"", "etag": "", "mtime": 0, "gzipped": b""}
 
-# ── 실시간 방문자 추적 (메모리 + 파일 영속) ──
+# ── 실시간 방문자 추적 (메모리 + 파일 + 환경변수 영속) ──
 VISITOR_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "visitor_count.json")
+VISITOR_TOTAL_BASE = int(os.environ.get("VISITOR_TOTAL_BASE", 0))  # 재배포 시 누적 베이스
 
 def _load_visitor_persist():
-    """영속 저장된 방문자 카운트 로드"""
+    """영속 저장된 방문자 카운트 로드
+    
+    우선순위: 파일 > 환경변수
+    재배포 시 파일은 날아가지만 환경변수는 유지됨
+    """
+    file_total = 0
+    today_date = ""
+    total_today = 0
+    peak_today = 0
     try:
         if os.path.exists(VISITOR_FILE):
             with open(VISITOR_FILE, "r") as f:
                 data = json.load(f)
-            return data.get("total_all", 0), data.get("today_date", ""), data.get("total_today", 0), data.get("peak_today", 0)
+            file_total = data.get("total_all", 0)
+            today_date = data.get("today_date", "")
+            total_today = data.get("total_today", 0)
+            peak_today = data.get("peak_today", 0)
     except Exception:
         pass
-    return 0, "", 0, 0
+    # 파일 값과 환경변수 중 큰 값 사용 (재배포 후에도 누적 유지)
+    final_total = max(file_total, VISITOR_TOTAL_BASE)
+    if final_total > file_total:
+        print(f"  📊 방문자 토탈: 환경변수 베이스 {VISITOR_TOTAL_BASE} 적용 (파일: {file_total})")
+    return final_total, today_date, total_today, peak_today
 
 def _save_visitor_persist():
     """방문자 카운트 파일에 영속 저장"""
@@ -64,6 +80,7 @@ _visitors = {
 }
 _visitors_lock = threading.Lock()
 VISITOR_TIMEOUT = 120  # 2분 내 ping 없으면 이탈로 간주
+print(f"  📊 방문자 초기화: 토탈 {_visitors['total_all']} | 베이스 {VISITOR_TOTAL_BASE}")
 
 
 def _refresh_cache():
