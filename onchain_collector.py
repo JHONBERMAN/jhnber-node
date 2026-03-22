@@ -359,22 +359,21 @@ def collect_okx(btc_price):
     time.sleep(0.3)
 
     # CVD (Taker Volume) — 24h 기준 순매수/순매도
+    # OKX taker-volume 응답: [timestamp, buyVol(USD), sellVol(USD)]
     data = fetch_json("https://www.okx.com/api/v5/rubik/stat/taker-volume?ccy=BTC&instType=CONTRACTS&period=1D")
     if data and data.get("data"):
         try:
-            # period=1D → 최근 데이터 포인트가 24h 집계
-            row = data["data"][0]  # 최신 1개
-            total_buy = safe_float(row[1])
-            total_sell = safe_float(row[2])
-            net = total_buy - total_sell  # BTC 단위 순매수
+            row = data["data"][0]
+            total_buy = safe_float(row[1])   # USD
+            total_sell = safe_float(row[2])   # USD
+            net = total_buy - total_sell      # USD 순매수
 
             # 체급별 추산 (비율 기반)
-            whale_pct, shark_pct, fish_pct, shrimp_pct = 0.45, 0.25, -0.10, -0.10
-            whale = net * whale_pct
-            shark = net * shark_pct
-            fish = net * fish_pct
-            shrimp = net * shrimp_pct
-            net_usd = round(net * btc_price)
+            whale = net * 0.45
+            shark = net * 0.25
+            fish = net * -0.10
+            shrimp = net * -0.10
+            net_usd = round(net)
 
             if net > 0:
                 analysis = (
@@ -389,12 +388,12 @@ def collect_okx(btc_price):
 
             out["cvd"] = {
                 "total": net_usd,
-                "whale": round(whale * btc_price),
-                "shark": round(shark * btc_price),
-                "fish": round(fish * btc_price),
-                "shrimp": round(shrimp * btc_price),
-                "buy_volume": round(total_buy * btc_price),
-                "sell_volume": round(total_sell * btc_price),
+                "whale": round(whale),
+                "shark": round(shark),
+                "fish": round(fish),
+                "shrimp": round(shrimp),
+                "buy_volume": round(total_buy),
+                "sell_volume": round(total_sell),
                 "btc_price": btc_price,
                 "source": "OKX 24h",
                 "analysis": analysis,
@@ -637,57 +636,147 @@ def collect_altseason():
 # ── SLOW: 고래 알림 ──────────────────────────────────
 
 def collect_whales():
-    """Whale Alert API → 대형 거래 추적"""
-    # API 키 없으면 데모 데이터
-    if not WHALE_KEY or WHALE_KEY == "YOUR_KEY":
-        now_ts = int(time.time())
-        demo_alerts = [
-            {"symbol": "BTC", "amount": 2500, "amount_usd": 325_000_000,
-             "from": "Unknown", "to": "Binance", "timestamp": now_ts - 120, "to_type": "exchange"},
-            {"symbol": "BTC", "amount": 1200, "amount_usd": 156_000_000,
-             "from": "Kraken", "to": "Unknown", "timestamp": now_ts - 300},
-            {"symbol": "USDT", "amount": 80_000_000, "amount_usd": 80_000_000,
-             "from": "Tether", "to": "Binance", "timestamp": now_ts - 600, "to_type": "exchange"},
-            {"symbol": "ETH", "amount": 15000, "amount_usd": 52_500_000,
-             "from": "Unknown", "to": "Coinbase", "timestamp": now_ts - 900, "to_type": "exchange"},
-            {"symbol": "USDC", "amount": 45_000_000, "amount_usd": 45_000_000,
-             "from": "Circle", "to": "Coinbase", "timestamp": now_ts - 1200, "to_type": "exchange"},
-        ]
-        return demo_alerts, 80_000_000, 45_000_000
+    """고래 알림 수집 — 3단 폴백
+    
+    1차: Whale Alert API (키 있으면)
+    2차: Whale Alert Twitter RSS (nitter 프록시)
+    3차: 데모 데이터
+    """
 
-    # 실제 API 호출
-    since = int(time.time()) - 3600
-    data = fetch_json(
-        f"https://api.whale-alert.io/v1/transactions?"
-        f"api_key={WHALE_KEY}&min_value=500000&start={since}"
-    )
-    txs = data.get("transactions", []) if data else []
+    # ── 1차: Whale Alert API (키 있으면) ──
+    if WHALE_KEY and WHALE_KEY != "YOUR_KEY":
+        since = int(time.time()) - 3600
+        data = fetch_json(
+            f"https://api.whale-alert.io/v1/transactions?"
+            f"api_key={WHALE_KEY}&min_value=500000&start={since}"
+        )
+        txs = data.get("transactions", []) if data else []
+        if txs:
+            alerts = []
+            usdt_to_exchange = 0
+            usdc_to_exchange = 0
+            for tx in txs:
+                sym = tx.get("symbol", "?").upper()
+                usd = tx.get("amount_usd", 0)
+                if tx.get("to_type") == "exchange":
+                    if sym == "USDT":
+                        usdt_to_exchange += usd
+                    elif sym == "USDC":
+                        usdc_to_exchange += usd
+                alerts.append({
+                    "symbol": sym, "amount": tx.get("amount", 0),
+                    "amount_usd": usd, "from": tx.get("from", "?"),
+                    "to": tx.get("to", "?"), "timestamp": tx.get("timestamp", 0),
+                })
+            alerts.sort(key=lambda x: x["amount_usd"], reverse=True)
+            print(f"    ✓ Whale Alert API: {len(alerts)}건")
+            return alerts[:15], usdt_to_exchange, usdc_to_exchange
 
-    alerts = []
-    usdt_to_exchange = 0
-    usdc_to_exchange = 0
+    # ── 2차: Whale Alert Twitter RSS 파싱 ──
+    print("  🐋 Whale RSS 시도…")
+    rss_urls = [
+        "https://nitter.net/whale_alert/rss",
+        "https://nitter.privacydev.net/whale_alert/rss",
+        "https://nitter.poast.org/whale_alert/rss",
+    ]
+    
+    for rss_url in rss_urls:
+        raw = fetch_raw(rss_url, timeout=10)
+        if not raw or "<item>" not in raw:
+            continue
+        
+        try:
+            alerts = []
+            usdt_ex, usdc_ex = 0, 0
+            now_ts = int(time.time())
+            
+            # XML 간이 파싱 (feedparser 없이)
+            items = raw.split("<item>")[1:15]  # 최대 15개
+            for item in items:
+                title = ""
+                t_match = re.search(r"<title>(.*?)</title>", item, re.DOTALL)
+                if t_match:
+                    title = t_match.group(1).strip()
+                    # CDATA 제거
+                    title = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", title)
+                
+                if not title:
+                    continue
+                
+                # 트윗 파싱: "🚨 1,000 #BTC (69,000,000 USD) transferred from unknown wallet to #Binance"
+                amount_match = re.search(r"([\d,]+)\s*#?(\w+)\s*\(([\d,]+)\s*USD\)", title)
+                if not amount_match:
+                    continue
+                
+                amount = int(amount_match.group(1).replace(",", ""))
+                symbol = amount_match.group(2).upper()
+                amount_usd = int(amount_match.group(3).replace(",", ""))
+                
+                if amount_usd < 500000:
+                    continue
+                
+                # from/to 파싱
+                from_addr = "Unknown"
+                to_addr = "Unknown"
+                from_match = re.search(r"from\s+(?:#?(\w+[\s\w]*))", title, re.I)
+                to_match = re.search(r"to\s+(?:#?(\w+[\s\w]*))", title, re.I)
+                if from_match:
+                    from_addr = from_match.group(1).strip()[:20]
+                if to_match:
+                    to_addr = to_match.group(1).strip()[:20]
+                
+                # 타임스탬프
+                pub_match = re.search(r"<pubDate>(.*?)</pubDate>", item)
+                ts = now_ts
+                if pub_match:
+                    try:
+                        from email.utils import parsedate_to_datetime
+                        ts = int(parsedate_to_datetime(pub_match.group(1)).timestamp())
+                    except Exception:
+                        pass
+                
+                alert = {
+                    "symbol": symbol, "amount": amount,
+                    "amount_usd": amount_usd,
+                    "from": from_addr, "to": to_addr,
+                    "timestamp": ts,
+                }
+                
+                # 스테이블코인 거래소 유입 추적
+                to_lower = to_addr.lower()
+                is_exchange = any(ex in to_lower for ex in ["binance", "coinbase", "kraken", "okx", "bybit", "huobi", "bitfinex", "upbit"])
+                if is_exchange:
+                    if symbol == "USDT":
+                        usdt_ex += amount_usd
+                    elif symbol == "USDC":
+                        usdc_ex += amount_usd
+                
+                alerts.append(alert)
+            
+            if alerts:
+                alerts.sort(key=lambda x: x["amount_usd"], reverse=True)
+                print(f"    ✓ Whale RSS: {len(alerts)}건 파싱")
+                return alerts[:15], usdt_ex, usdc_ex
+        except Exception as e:
+            print(f"    ⚠ RSS 파싱 에러: {e}")
+            continue
 
-    for tx in txs:
-        sym = tx.get("symbol", "?").upper()
-        usd = tx.get("amount_usd", 0)
-
-        if tx.get("to_type") == "exchange":
-            if sym == "USDT":
-                usdt_to_exchange += usd
-            elif sym == "USDC":
-                usdc_to_exchange += usd
-
-        alerts.append({
-            "symbol": sym,
-            "amount": tx.get("amount", 0),
-            "amount_usd": usd,
-            "from": tx.get("from", "?"),
-            "to": tx.get("to", "?"),
-            "timestamp": tx.get("timestamp", 0),
-        })
-
-    alerts.sort(key=lambda x: x["amount_usd"], reverse=True)
-    return alerts[:15], usdt_to_exchange, usdc_to_exchange
+    # ── 3차: 데모 데이터 (최후 폴백) ──
+    print("    ⚠ Whale 전체 실패 — 데모 데이터")
+    now_ts = int(time.time())
+    demo_alerts = [
+        {"symbol": "BTC", "amount": 2500, "amount_usd": 325_000_000,
+         "from": "Unknown", "to": "Binance", "timestamp": now_ts - 120, "to_type": "exchange"},
+        {"symbol": "BTC", "amount": 1200, "amount_usd": 156_000_000,
+         "from": "Kraken", "to": "Unknown", "timestamp": now_ts - 300},
+        {"symbol": "USDT", "amount": 80_000_000, "amount_usd": 80_000_000,
+         "from": "Tether", "to": "Binance", "timestamp": now_ts - 600, "to_type": "exchange"},
+        {"symbol": "ETH", "amount": 15000, "amount_usd": 52_500_000,
+         "from": "Unknown", "to": "Coinbase", "timestamp": now_ts - 900, "to_type": "exchange"},
+        {"symbol": "USDC", "amount": 45_000_000, "amount_usd": 45_000_000,
+         "from": "Circle", "to": "Coinbase", "timestamp": now_ts - 1200, "to_type": "exchange"},
+    ]
+    return demo_alerts, 80_000_000, 45_000_000
 
 
 # ── 메인 수집 루프 ────────────────────────────────────
