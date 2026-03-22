@@ -209,7 +209,13 @@
     letter-spacing: 1px;
     white-space: nowrap;
     text-align: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
+  .tab-btn svg { opacity: 0.7; flex-shrink: 0; }
+  .tab-btn.active svg { opacity: 1; stroke: var(--gold2); }
+  .tab-btn:hover svg { opacity: 1; }
 
   .tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 
@@ -271,7 +277,7 @@
     gap: 8px;
   }
 
-  .card-title .icon { font-size: 18px; }
+  .card-title .icon { display: inline-flex; align-items: center; vertical-align: middle; }
 
   /* Grid layouts */
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -816,19 +822,19 @@
   </div>
 
   <div class="nav-tabs">
-    <button class="tab-btn active" onclick="showPanel('overview')">✦ 오버뷰</button>
-    <button class="tab-btn" onclick="showPanel('astro')">🔮 점성술</button>
-    <button class="tab-btn" onclick="showPanel('celestial')">🪐 천체</button>
-    <button class="tab-btn" onclick="showPanel('market')">📈 시황</button>
-    <button class="tab-btn" onclick="showPanel('econ')">📅 경제캘린더</button>
-    <button class="tab-btn" onclick="showPanel('news')">📰 뉴스</button>
-    <button class="tab-btn" onclick="showPanel('fear')">🌙 공포/탐욕</button>
-    <button class="tab-btn" onclick="showPanel('onchain')">🐋 온체인</button>
-    <button class="tab-btn" onclick="showPanel('kimchi')">🌶️ 김프</button>
-    <button class="tab-btn" onclick="showPanel('liqmap')">💥 청산맵</button>
-    <button class="tab-btn" onclick="showPanel('warindex')">⚔️ 전쟁지수</button>
-    <button class="tab-btn" onclick="showPanel('liquidity')">💧 유동성</button>
-    <button class="tab-btn" onclick="showPanel('fed')">🏦 페드워치</button>
+    <button class="tab-btn active" onclick="showPanel('overview')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg> 오버뷰</button>
+    <button class="tab-btn" onclick="showPanel('astro')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/></svg> 점성술</button>
+    <button class="tab-btn" onclick="showPanel('celestial')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg> 천체</button>
+    <button class="tab-btn" onclick="showPanel('market')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg> 시황</button>
+    <button class="tab-btn" onclick="showPanel('econ')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> 경제캘린더</button>
+    <button class="tab-btn" onclick="showPanel('news')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/></svg> 뉴스</button>
+    <button class="tab-btn" onclick="showPanel('fear')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M8 15s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg> 공포/탐욕</button>
+    <button class="tab-btn" onclick="showPanel('onchain')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.73 21a2 2 0 0 1-3.46 0M18.63 13A17.89 17.89 0 0 1 18 8M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/></svg> 온체인</button>
+    <button class="tab-btn" onclick="showPanel('kimchi')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> 김프</button>
+    <button class="tab-btn" onclick="showPanel('liqmap')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg> 청산맵</button>
+    <button class="tab-btn" onclick="showPanel('warindex')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> 전쟁지수</button>
+    <button class="tab-btn" onclick="showPanel('liquidity')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg> 유동성</button>
+    <button class="tab-btn" onclick="showPanel('fed')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg> 페드워치</button>
   </div>
 
   <!-- OVERVIEW PANEL -->
@@ -878,7 +884,7 @@
     <!-- 공포/탐욕 미장+코인 분리 + X-SIGNAL -->
     <div class="grid-2 section-gap">
       <div class="card">
-        <div class="card-title"><span class="icon">✦</span> X-SIGNAL</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg></span> X-SIGNAL</div>
         <div id="ovSignals">
           <div class="signal-row">
             <div class="signal-dot bull"></div>
@@ -903,7 +909,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title" style="justify-content:center;"><span class="icon">✦</span> 공포 / 탐욕</div>
+        <div class="card-title" style="justify-content:center;"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg></span> 공포 / 탐욕</div>
         <div style="display:flex;gap:16px;padding:8px 0;">
           <!-- 코인 F&G -->
           <div style="flex:1;text-align:center;padding:12px 8px;background:rgba(201,168,76,0.05);border:1px solid var(--border);border-radius:8px;">
@@ -1004,7 +1010,7 @@
     <!-- 다가오는 이벤트 + 태양궁 -->
     <div class="grid-2 section-gap">
       <div class="card">
-        <div class="card-title"><span class="icon">✦</span> 다가오는 핵심 이벤트</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg></span> 다가오는 핵심 이벤트</div>
         <div style="display:flex;gap:8px;margin-bottom:12px;">
           <button onclick="showUpcoming('astro',this)" style="flex:1;padding:6px;border:1px solid var(--gold);background:rgba(201,168,76,0.15);color:var(--gold);border-radius:4px;cursor:pointer;font-size:12px;font-family:'Cinzel Decorative',serif;">🔮 천체·점성</button>
           <button onclick="showUpcoming('econ',this)" style="flex:1;padding:6px;border:1px solid var(--border);background:transparent;color:var(--text2);border-radius:4px;cursor:pointer;font-size:12px;font-family:'Cinzel Decorative',serif;">📅 경제</button>
@@ -1013,7 +1019,7 @@
         <div id="ovUpcomingEcon" style="display:none;"></div>
       </div>
       <div class="card">
-        <div class="card-title"><span class="icon">✦</span> 오늘의 코스믹 브리핑</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg></span> 오늘의 코스믹 브리핑</div>
         <div style="padding:8px 0;">
           <!-- 태양궁 + 날짜 -->
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);">
@@ -1051,7 +1057,7 @@
     </div>
     <!-- 주요 발언 · 월가 인사이드 -->
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">📢</span> 주요 발언 · 월가 인사이드</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M3 11l18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></span> 주요 발언 · 월가 인사이드</div>
       <div id="wallStreetBuzz">
         <div class="signal-row">
           <div style="font-size:14px;width:22px;text-align:center;">🏛️</div>
@@ -1090,24 +1096,24 @@
     <!-- 주요 지수 + 환율 -->
     <div class="grid-2 section-gap">
       <div class="card">
-        <div class="card-title"><span class="icon">📊</span> 주요 지수 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="stockUpdated">--</span></span></div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span> 주요 지수 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="stockUpdated">--</span></span></div>
         <div id="stockList"><div style="padding:10px;text-align:center;color:var(--text2);font-size:12px;">불러오는 중...</div></div>
       </div>
       <div class="card">
-        <div class="card-title"><span class="icon">💱</span> 환율 실시간 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="forexUpdated">--</span></span></div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span> 환율 실시간 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="forexUpdated">--</span></span></div>
         <div id="forexList"><div style="padding:10px;text-align:center;color:var(--text2);font-size:12px;">불러오는 중...</div></div>
       </div>
     </div>
     <!-- M7 (Magnificent 7) -->
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">💎</span> MAGNIFICENT 7 — 빅테크 <span style="margin-left:auto;font-size:11px;color:var(--text2);">업데이트: <span id="m7Updated">--</span></span></div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><polygon points="6 3 18 3 22 9 12 22 2 9"/></svg></span> MAGNIFICENT 7 — 빅테크 <span style="margin-left:auto;font-size:11px;color:var(--text2);">업데이트: <span id="m7Updated">--</span></span></div>
       <div id="m7List" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;">
         <div style="padding:12px;text-align:center;color:var(--text2);font-size:12px;grid-column:1/-1;">불러오는 중...</div>
       </div>
     </div>
     <!-- 원자재 -->
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">⛏️</span> 원자재 · CME 실시간 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="commodityUpdated">--</span></span></div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> 원자재 · CME 실시간 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="commodityUpdated">--</span></span></div>
       <div style="display:grid;grid-template-columns:1fr 1px 1fr;gap:0;">
         <div style="padding-right:16px;">
           <div class="ticker-item"><div><div class="ticker-name">GOLD</div><div class="ticker-sub">금 (XAU/USD)</div></div><div><div class="ticker-price up" id="goldPrice">--</div></div></div>
@@ -1124,12 +1130,12 @@
     </div>
     <!-- 암호화폐 TOP20 -->
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">₿</span> 암호화폐 시총 TOP 20 <span style="margin-left:auto;font-size:11px;color:var(--text2)">CMC 기준 · 스테이블/랩핑 제외 · <span id="cryptoUpdated">--</span></span></div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M11.767 19.089c4.924.868 6.14-6.025 1.216-6.894m-1.216 6.894L5.86 18.047m5.908 1.042-.347 1.97m1.563-8.864c4.924.869 6.14-6.025 1.215-6.893m-1.215 6.893-3.94-.694m5.155-6.2L8.29 4.26m5.908 1.042.348-1.97M7.48 16.793l-1.86-11.03"/></svg></span> 암호화폐 시총 TOP 20 <span style="margin-left:auto;font-size:11px;color:var(--text2)">CMC 기준 · 스테이블/랩핑 제외 · <span id="cryptoUpdated">--</span></span></div>
       <div id="cryptoList" style="max-height:480px;overflow-y:auto;"><div style="padding:20px;text-align:center;color:var(--text2);font-size:12px;">불러오는 중...</div></div>
     </div>
     <!-- 코인-미장 상관계수 -->
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">✦</span> CORRELATION MATRIX — BTC × 전통자산 상관계수 (90일)</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg></span> CORRELATION MATRIX — BTC × 전통자산 상관계수 (90일)</div>
       <div style="padding:8px 0;">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;" id="corrMatrix">
           <div style="padding:10px;background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.12);border-radius:6px;text-align:center;">
@@ -1171,7 +1177,7 @@
     </div>
     <!-- 점성술 × 시장 -->
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">🔮</span> 점성술 × 시장 연계 분석</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/></svg></span> 점성술 × 시장 연계 분석</div>
       <div style="font-size:15px; color:var(--text2); line-height:2.2; padding: 8px 0;">
         현재 <span style="color:var(--gold)">목성(게자리)</span>의 영향으로 부동산·식품·헬스케어 섹터에 보호·확장 에너지가 흐릅니다.
         <span style="color:var(--purple2)">금성(물병자리)</span>은 기술주와 혁신 섹터에 긍정적 진동을 보내고 있으며,
@@ -1183,7 +1189,7 @@
   <!-- GLOBAL LIQUIDITY PANEL -->
   <div id="panel-liquidity" class="panel">
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">💧</span> GLOBAL LIQUIDITY MONITOR — 중앙은행 유동성 현황 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="liqMonitorUpdated">--</span></span></div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg></span> GLOBAL LIQUIDITY MONITOR — 중앙은행 유동성 현황 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="liqMonitorUpdated">--</span></span></div>
       <div style="padding:12px 0;">
         <!-- 글로벌 유동성 상태 표시등 -->
         <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:16px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);border-radius:8px;margin-bottom:16px;">
@@ -1289,7 +1295,7 @@
     </div>
     <!-- 유동성 시사점 -->
     <div class="card">
-      <div class="card-title"><span class="icon">✦</span> LIQUIDITY SIGNAL — 투자 시사점</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg></span> LIQUIDITY SIGNAL — 투자 시사점</div>
       <div style="font-size:14px;color:var(--text2);line-height:2.2;padding:8px 0;">
         <span style="color:var(--green)">글로벌 유동성 넷 포지션: 주입 우세</span> — 중국(PBoC) 적극 완화 + ECB 인하 사이클 + Fed QT 종료 후 RRP 소진이 동시 진행. 역사적으로 주요 3개 중앙은행이 동시에 완화 방향일 때 BTC 평균 +47%, S&P +18% 상승.<br><br>
         <span style="color:var(--gold)">주의</span>: BOJ의 갑작스러운 긴축 전환(엔캐리 청산) 리스크 잔존. 2024년 8월처럼 BOJ 인상 → 글로벌 캐리 청산 → 급락 시나리오 모니터링 필요.<br><br>
@@ -1302,7 +1308,7 @@
   <div id="panel-fed" class="panel">
     <div class="grid-2 section-gap">
       <div class="card">
-        <div class="card-title"><span class="icon">🏦</span> 5월 FOMC 금리 결정 확률 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="fedUpdated">--</span></span></div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg></span> 5월 FOMC 금리 결정 확률 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="fedUpdated">--</span></span></div>
         <div class="gauge-wrap">
           <div class="gauge">
             <svg viewBox="0 0 200 100">
@@ -1346,7 +1352,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title"><span class="icon">📅</span> FOMC 일정 & 금리 현황</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span> FOMC 일정 & 금리 현황</div>
         <div style="margin-bottom: 20px;">
           <div style="font-size:11px; color:var(--text2); letter-spacing:1px; margin-bottom:6px;">현재 기준금리</div>
           <div style="font-family:'Space Mono',monospace; font-size:28px; color:var(--cyan);" id="fedRate">4.25 ~ 4.50%</div>
@@ -1381,7 +1387,7 @@
     </div>
     <!-- 점도표 (Dot Plot) -->
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">🎯</span> FOMC 점도표 (DOT PLOT) — 2026 <span style="margin-left:auto;font-size:11px;color:var(--text2);">CME FedWatch 기준</span></div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span> FOMC 점도표 (DOT PLOT) — 2026 <span style="margin-left:auto;font-size:11px;color:var(--text2);">CME FedWatch 기준</span></div>
       <div style="padding:12px 0;">
         <div style="position:relative;height:180px;border-left:1px solid var(--border);border-bottom:1px solid var(--border);margin:0 10px;">
           <!-- Y축 라벨 -->
@@ -1450,7 +1456,7 @@
       </div>
     </div>
     <div class="card">
-      <div class="card-title"><span class="icon">🔮</span> 점성술 × Fed 분석</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/></svg></span> 점성술 × Fed 분석</div>
       <div style="font-size:15px; color:var(--text2); line-height:2.2; padding: 8px 0;">
         <span style="color:var(--gold)">토성(물고기자리 → 양자리 진입 예정)</span>은 통화정책의 새로운 사이클 전환을 암시합니다. 
         규제와 구조의 행성 토성이 양자리로 이동하면 더 적극적인 정책 변화가 예상됩니다. 
@@ -1464,7 +1470,7 @@
   <!-- ASTROLOGY PANEL -->
   <div id="panel-astro" class="panel">
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">🌟</span> 오늘의 행성 위치 <span style="margin-left:auto;font-size:12px;color:var(--text2);font-family:'Space Mono',monospace;" id="astroDateLabel">--</span></div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)" stroke="none"><path d="M12 2l2.4 7.2H22l-6 4.8 2.4 7.2L12 16.4l-6.4 4.8L8 14 2 9.2h7.6z"/></svg></span> 오늘의 행성 위치 <span style="margin-left:auto;font-size:12px;color:var(--text2);font-family:'Space Mono',monospace;" id="astroDateLabel">--</span></div>
       <div class="astro-grid">
         <div class="planet-card">
           <div class="planet-symbol">☀️</div>
@@ -1519,7 +1525,7 @@
 
     <!-- 메리먼 MMA 스타일 지오코스믹 분석 -->
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">📖</span> GEOCOSMIC ANALYSIS — MMA 메리먼 방법론</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span> GEOCOSMIC ANALYSIS — MMA 메리먼 방법론</div>
       <div style="padding:6px 0 12px;font-size:12px;color:var(--text2);line-height:1.6;border-bottom:1px solid var(--border);margin-bottom:12px;">
         해석 프레임워크: Raymond Merriman (MMA Cycles) 방법론 기반 — 외행성 사이클 + 지오코스믹 시그니처 + 사이클 타이밍 분석. Swiss Ephemeris(NASA JPL DE431) 천문력 참조.
       </div>
@@ -1593,7 +1599,7 @@
 
     <!-- 메리먼 종합 전망 -->
     <div class="card">
-      <div class="card-title"><span class="icon">🌌</span> 2026 MMA GEOCOSMIC OUTLOOK</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v.01M12 12a2.5 2.5 0 0 0-2.5-2.5 2.5 2.5 0 0 1 5 0A2.5 2.5 0 0 0 12 12z"/></svg></span> 2026 MMA GEOCOSMIC OUTLOOK</div>
       <div style="font-size:15px;color:var(--text2);line-height:2.2;padding:8px 0;">
         메리먼 방법론 종합: <span style="color:var(--gold)">목성-토성 20년 사이클 확장기</span> + <span style="color:var(--green)">목성 격앙</span>의 조합은 2026년이 아직 강세장 구간 내에 있음을 시사합니다. 그러나 <span style="color:var(--red)">4년 프라이머리 사이클 후반부</span>에 진입하고 있어, 하반기 중간 조정에 대한 준비가 필요합니다.<br><br>
         <span style="color:var(--purple2)">토성-해왕성 합</span>이라는 36년 주기 이벤트는 올해 가장 중요한 지오코스믹 시그니처이며, 가상자산 제도화와 AI 규제 프레임워크의 결정적 전환점이 될 것입니다. 메리먼의 CRD(Critical Reversal Date) 클러스터를 주시하세요.<br><br>
@@ -1606,7 +1612,7 @@
 
       <!-- 크립토 F&G -->
       <div class="card">
-        <div class="card-title"><span class="icon">🌑</span> 공포/탐욕지수 — 블록스트리트 기준 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="fgUpdated">--</span></span></div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span> 공포/탐욕지수 — 블록스트리트 기준 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="fgUpdated">--</span></span></div>
         <div style="display:flex;flex-direction:column;align-items:center;padding:16px 0 8px;">
           <svg viewBox="0 0 200 120" width="200" height="120">
             <defs>
@@ -1634,7 +1640,7 @@
 
       <!-- CNN 미장 F&G -->
       <div class="card">
-        <div class="card-title"><span class="icon">🌕</span> 공포/탐욕지수 — 미국 주식 (CNN) <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="fgCnnUpdated">--</span></span></div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4" fill="var(--cyan)" opacity="0.3"/></svg></span> 공포/탐욕지수 — 미국 주식 (CNN) <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="fgCnnUpdated">--</span></span></div>
         <div style="display:flex;flex-direction:column;align-items:center;padding:16px 0 8px;">
           <svg viewBox="0 0 200 120" width="200" height="120">
             <defs>
@@ -1696,7 +1702,7 @@
 
     <!-- 점성술 연계 -->
     <div class="card">
-      <div class="card-title"><span class="icon">🌙</span> 달의 위상 × 공포/탐욕 연계 분석</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span> 달의 위상 × 공포/탐욕 연계 분석</div>
       <div class="zodiac-insight" style="margin-top:0;border:none;background:none;padding:0;">
         <div class="zodiac-insight-text" id="fgAstro">공포/탐욕지수와 현재 행성 배치를 분석 중입니다...</div>
       </div>
@@ -1708,7 +1714,7 @@
     <div class="grid-2 section-gap">
       <!-- 전쟁 긴장 지수 게이지 -->
       <div class="card">
-        <div class="card-title"><span class="icon">⚔️</span> GEOPOLITICAL TENSION INDEX <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="warUpdated">--</span></span></div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4m0 4h.01"/></svg></span> GEOPOLITICAL TENSION INDEX <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="warUpdated">--</span></span></div>
         <div style="display:flex;flex-direction:column;align-items:center;padding:16px 0;">
           <div style="position:relative;width:200px;height:100px;margin-bottom:12px;">
             <svg viewBox="0 0 200 100" width="200" height="100">
@@ -1736,7 +1742,7 @@
       </div>
       <!-- 분쟁 지역 모니터링 -->
       <div class="card">
-        <div class="card-title"><span class="icon">🌍</span> 핫스팟 모니터링</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/></svg></span> 핫스팟 모니터링</div>
         <div style="display:flex;flex-direction:column;gap:8px;" id="warHotspots">
           <div class="signal-row">
             <div style="font-size:14px;width:22px;">🇺🇦</div>
@@ -1784,14 +1790,14 @@
     <!-- 안전자산 연동 + 펜타곤 피자 지수 -->
     <div class="grid-2 section-gap">
       <div class="card">
-        <div class="card-title"><span class="icon">🛡️</span> 전쟁지수 × 안전자산 상관관계</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> 전쟁지수 × 안전자산 상관관계</div>
         <div style="font-size:12px;color:var(--text2);line-height:1.9;padding:8px 0;">
           전쟁 긴장 지수 산출: <span style="color:var(--gold)">뉴스 헤드라인 빈도</span> + <span style="color:var(--cyan)">유가 변동률</span> + <span style="color:var(--green)">금값 변동률</span> + <span style="color:var(--purple2)">VIX 스파이크</span> 가중 합산.<br>
           지수 80+ 시: <span style="color:var(--red)">안전자산 긴급 이동</span> 권장. 역사적으로 80+ 진입 후 14일 내 S&P -3.2% 조정.
         </div>
       </div>
       <div class="card">
-        <div class="card-title"><span class="icon">🍕</span> PENTAGON PIZZA INDEX</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M12 2L2 22h20L12 2z"/><circle cx="10" cy="14" r="1" fill="var(--gold)"/><circle cx="14" cy="16" r="1" fill="var(--gold)"/></svg></span> PENTAGON PIZZA INDEX</div>
         <div style="padding:8px 0;">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
             <div style="font-size:28px;">🍕</div>
@@ -1813,7 +1819,7 @@
   <!-- ECON PANEL (경제) -->
   <div id="panel-econ" class="panel">
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">📅</span> 경제 캘린더 — 인베스팅닷컴 기준</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span> 경제 캘린더 — 인베스팅닷컴 기준</div>
       <div id="econCalendar" style="padding:4px 0;"></div>
     </div>
   </div>
@@ -1821,7 +1827,7 @@
   <!-- CELESTIAL PANEL (천체) -->
   <div id="panel-celestial" class="panel">
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">🌑</span> 2026 천체 이벤트</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span> 2026 천체 이벤트</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div>
           <div id="moonEvents" style="padding:4px 0;"></div>
@@ -1849,7 +1855,7 @@
       </div>
     </div>
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">🔮</span> 천체 × 시장 영향 분석</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/></svg></span> 천체 × 시장 영향 분석</div>
       <div id="cosmicMarketAnalysis" style="font-size:15px;color:var(--text2);line-height:2.2;padding:8px 0;"></div>
     </div>
     <div class="card section-gap">
@@ -1858,7 +1864,7 @@
     </div>
     <div class="grid-2 section-gap">
       <div class="card">
-        <div class="card-title"><span class="icon">✦</span> MMA CRITICAL REVERSAL DATES (CRD)</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg></span> MMA CRITICAL REVERSAL DATES (CRD)</div>
         <div style="padding:8px 0;font-size:12px;">
           <div style="margin-bottom:10px;color:var(--text2);line-height:1.7;">메리먼의 CRD는 지오코스믹 시그니처가 집중되는 날짜로, 시장 전환점 형성 확률이 통계적으로 76% 이상입니다.</div>
           <div class="signal-row">
@@ -1916,7 +1922,7 @@
     <div class="grid-2 section-gap">
       <!-- 고래 알림 -->
       <div class="card">
-        <div class="card-title"><span class="icon">🐋</span> WHALE ALERT — 실시간 고래 이동 <span style="margin-left:auto;font-size:12px;color:var(--text2)">업데이트: <span id="whaleUpdated">--</span></span></div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg></span> WHALE ALERT — 실시간 고래 이동 <span style="margin-left:auto;font-size:12px;color:var(--text2)">업데이트: <span id="whaleUpdated">--</span></span></div>
         <div id="whaleAlerts" style="max-height:320px;overflow-y:auto;">
           <div style="padding:16px;text-align:center;color:var(--text2);font-size:12px;" class="loading-pulse">
             data.json에서 고래 데이터를 불러오는 중...<br>
@@ -1926,7 +1932,7 @@
       </div>
       <!-- 스테이블코인 유입 에너지 게이지 -->
       <div class="card">
-        <div class="card-title"><span class="icon">⚡</span> STABLECOIN ENERGY — 거래소 유입량</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span> STABLECOIN ENERGY — 거래소 유입량</div>
         <div style="padding:12px 0;">
           <!-- USDT 게이지 -->
           <div style="margin-bottom:16px;">
@@ -1966,7 +1972,7 @@
     </div>
     <!-- MVRV Ratio -->
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">📐</span> MVRV RATIO — 시장 과열/저평가 지표 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="mvrvUpdated">--</span></span></div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span> MVRV RATIO — 시장 과열/저평가 지표 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="mvrvUpdated">--</span></span></div>
       <div style="padding:12px 0;">
         <div style="display:flex;align-items:center;gap:20px;margin-bottom:16px;">
           <div style="flex:1;">
@@ -2003,7 +2009,7 @@
     </div>
     <!-- CVD (Cumulative Volume Delta) -->
     <div class="card">
-      <div class="card-title"><span class="icon">📊</span> CVD — 누적 거래량 델타 (체급별) <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="cvdUpdated">--</span></span></div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span> CVD — 누적 거래량 델타 (체급별) <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="cvdUpdated">--</span></span></div>
       <div style="padding:8px 0;">
         <!-- 전체 CVD -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -2082,7 +2088,7 @@
     </div>
     <!-- 온체인 × 점성술 연계 분석 (맨 하단) -->
     <div class="card">
-      <div class="card-title"><span class="icon">🔮</span> 온체인 × 점성술 연계 분석</div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/></svg></span> 온체인 × 점성술 연계 분석</div>
       <div style="font-size:15px;color:var(--text2);line-height:2.2;padding:8px 0;" id="onchainAstro">
         고래의 움직임과 스테이블코인 유입 에너지를 현재 천체 배치와 교차 분석합니다.
         <span style="color:var(--gold)">목성(게자리)</span>의 보호 에너지 아래 거래소 유입이 증가하면 기관 매수 신호로 해석됩니다.
@@ -2095,7 +2101,7 @@
   <div id="panel-kimchi" class="panel">
     <div class="grid-2 section-gap">
       <div class="card">
-        <div class="card-title"><span class="icon">🌶️</span> 김치프리미엄 실시간 <span style="margin-left:auto;font-size:11px;color:var(--text2);">업데이트: <span id="kimchiUpdated">--</span></span></div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span> 김치프리미엄 실시간 <span style="margin-left:auto;font-size:11px;color:var(--text2);">업데이트: <span id="kimchiUpdated">--</span></span></div>
         <div style="display:flex;flex-direction:column;align-items:center;padding:20px 0;">
           <div style="font-family:'Space Mono',monospace;font-size:48px;font-weight:700;" id="kimchiPremium">--</div>
           <div style="font-size:13px;color:var(--text2);margin-top:4px;" id="kimchiLabel">로딩중...</div>
@@ -2122,7 +2128,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title"><span class="icon">📊</span> 김프 해석 가이드</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span> 김프 해석 가이드</div>
         <div style="display:flex;flex-direction:column;gap:10px;padding:8px 0;">
           <div style="padding:10px;background:rgba(255,68,68,0.06);border:1px solid rgba(255,68,68,0.15);border-radius:6px;">
             <div style="font-size:11px;color:var(--red);font-weight:500;margin-bottom:4px;">김프 5% 이상 — 과열</div>
@@ -2148,7 +2154,7 @@
   <!-- LIQUIDATION MAP PANEL -->
   <div id="panel-liqmap" class="panel">
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">💥</span> BTC LIQUIDATION HEATMAP — 청산 물량 분포 <span style="margin-left:auto;font-size:11px;color:var(--text2);">업데이트: <span id="liqUpdated">--</span></span></div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span> BTC LIQUIDATION HEATMAP — 청산 물량 분포 <span style="margin-left:auto;font-size:11px;color:var(--text2);">업데이트: <span id="liqUpdated">--</span></span></div>
       <div style="padding:12px 0;">
         <!-- 히트맵 시각화 -->
         <div id="liqHeatmap" style="position:relative;height:280px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;overflow:hidden;padding:8px;">
@@ -2178,7 +2184,7 @@
     <div class="grid-2 section-gap">
       <!-- 주요 청산 구간 -->
       <div class="card">
-        <div class="card-title"><span class="icon">🎯</span> 핵심 청산 구간 — 매수/매도 타점</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span> 핵심 청산 구간 — 매수/매도 타점</div>
         <div id="liqZones">
           <div class="signal-row">
             <div class="signal-dot bear"></div>
@@ -2205,7 +2211,7 @@
       </div>
       <!-- 청산 통계 -->
       <div class="card">
-        <div class="card-title"><span class="icon">📊</span> 24H 청산 통계</div>
+        <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span> 24H 청산 통계</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:8px 0;">
           <div style="padding:12px;background:rgba(255,68,68,0.06);border:1px solid rgba(255,68,68,0.15);border-radius:6px;text-align:center;">
             <div style="font-size:10px;color:var(--red);letter-spacing:1px;margin-bottom:6px;">LONG 청산</div>
@@ -2226,7 +2232,7 @@
   <!-- NEWS PANEL -->
   <div id="panel-news" class="panel">
     <div class="card section-gap">
-      <div class="card-title"><span class="icon">📰</span> 실시간 경제 뉴스 <span style="margin-left:auto;font-size:12px;color:var(--text2);">업데이트: <span id="newsUpdated">--</span></span></div>
+      <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/></svg></span> 실시간 경제 뉴스 <span style="margin-left:auto;font-size:12px;color:var(--text2);">업데이트: <span id="newsUpdated">--</span></span></div>
       <div class="topic-chips" style="margin-bottom:16px;">
         <div class="chip active" onclick="filterNews(this,'all')">전체</div>
         <div class="chip" onclick="filterNews(this,'macro')">매크로</div>
