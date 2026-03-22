@@ -911,7 +911,7 @@ async function fetchOnchainData() {
     // 시장심리 실측 지표 (Put/Call, 모멘텀, 안전자산, 정크본드)
     if(data.market_sentiment){const ms=data.market_sentiment;
       // Put/Call Ratio
-      if(ms.put_call!=null){const pc=ms.put_call;if($('putCallValue')){$('putCallValue').textContent=pc;$('putCallValue').style.color=pc>1?'var(--red)':pc<.7?'var(--green)':'var(--gold)';}if($('putCallGauge'))$('putCallGauge').style.width=Math.min(100,(pc/1.5)*100)+'%';}
+      if(ms.put_call!=null){const pc=ms.put_call;if($('putCallValue')){$('putCallValue').textContent=pc+(ms.put_call_estimated?' *':'');$('putCallValue').style.color=pc>1?'var(--red)':pc<.7?'var(--green)':'var(--gold)';}if($('putCallGauge'))$('putCallGauge').style.width=Math.min(100,(pc/1.5)*100)+'%';}
       // 모멘텀
       if(ms.momentum!=null){const e=$('cnn-momentum');if(e){const g=getBSGrade(ms.momentum);e.textContent=ms.momentum;e.style.color=g.color;}}
       // VIX (실제 VIX 값 사용 — data.market에서)
