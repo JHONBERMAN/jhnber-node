@@ -379,10 +379,8 @@ def collect_okx(btc_price):
                 total_sell = safe_float(row[2])
                 net = total_buy - total_sell
 
-                whale = net * 0.45
-                shark = net * 0.25
-                fish = net * -0.10
-                shrimp = net * -0.10
+                # 체급별 분배 — OKX는 체급별 데이터 미제공
+                # 총 순매수/순매도만 제공하므로, 체급별은 표시하지 않음
                 net_usd = round(net)
 
                 if net > 0:
@@ -398,10 +396,10 @@ def collect_okx(btc_price):
 
                 cvd_data = {
                     "total": net_usd,
-                    "whale": round(whale),
-                    "shark": round(shark),
-                    "fish": round(fish),
-                    "shrimp": round(shrimp),
+                    "whale": 0,
+                    "shark": 0,
+                    "fish": 0,
+                    "shrimp": 0,
                     "buy_volume": round(total_buy),
                     "sell_volume": round(total_sell),
                     "btc_price": btc_price,
@@ -447,7 +445,12 @@ def collect_kimchi(btc_price):
 # ── SLOW: 청산맵 ─────────────────────────────────────
 
 def collect_liquidation(btc_price, hl_oi=0):
-    """OI + 가격 기반 청산 구간 추산"""
+    """OI + 가격 기반 청산 구간 — Hyperliquid OI 실측 기반
+    
+    실제 청산 물량 분포 API는 유료(Coinglass 등)이므로,
+    OI와 현재가를 기반으로 통계적 청산 구간을 산출합니다.
+    고레버리지 구간(±3~6%)에 청산 물량이 집중되는 패턴 반영.
+    """
     print(f"  💥 청산맵… ${btc_price:,.0f} OI:{hl_oi}")
     return {
         "current_price": round(btc_price),
@@ -537,7 +540,7 @@ def collect_celestial():
             planet_data(ephem.Mars(), "♂", "MARS · 화성"),
             planet_data(ephem.Jupiter(), "♃", "JUPITER · 목성"),
             planet_data(ephem.Saturn(), "♄", "SATURN · 토성"),
-            planet_data(ephem.Mars(), "♅", "URANUS · 천왕성"),  # ephem has no Uranus, use placeholder
+            # 천왕성/해왕성: ephem 미지원 — 표시하지 않음 (가짜 데이터 배제)
         ]
         
         # 달 위상
@@ -908,6 +911,128 @@ def collect_cnn_fg():
         print("    ↩ 이전 캐시 반환")
         return _cnn_fg_cache["data"]
     return None
+
+
+# ── SLOW: 시장 심리 실측 지표 (Put/Call, 모멘텀, 안전자산, 정크본드) ──
+
+_sentiment_cache = {"data": None, "last": 0}
+
+def collect_market_sentiment():
+    """실제 시장 심리 지표 수집 — Yahoo Finance 기반
+    
+    하루 1회 갱신 (장 마감 데이터 기반)
+    
+    1. Put/Call Ratio: CBOE equity put/call (^CPCE)
+    2. 모멘텀: S&P500 현재가 vs 125일 이동평균
+    3. 안전자산 수요: TLT(채권) vs SPY(주식) 20일 상대 수익률
+    4. 정크본드 스프레드: HYG(정크) vs LQD(투자등급) 스프레드
+    """
+    global _sentiment_cache
+    now = time.time()
+
+    if _sentiment_cache["data"] and (now - _sentiment_cache["last"]) < 86400:
+        print("  📊 시장심리… (캐시, 24h)")
+        return _sentiment_cache["data"]
+
+    print("  📊 시장심리 실측 지표 수집…")
+    result = {}
+
+    # 1. Put/Call Ratio (CBOE)
+    # ^CPCE = CBOE Equity Put/Call Ratio
+    try:
+        pc_price, _ = _yahoo_quote("^CPCE")
+        if pc_price and 0.3 < pc_price < 2.0:
+            result["put_call"] = round(pc_price, 2)
+            if pc_price > 1.0:
+                result["put_call_signal"] = "공포 (풋 > 콜)"
+            elif pc_price < 0.7:
+                result["put_call_signal"] = "탐욕 (콜 > 풋)"
+            else:
+                result["put_call_signal"] = "중립"
+            print(f"    ✓ Put/Call: {pc_price:.2f} ({result['put_call_signal']})")
+        else:
+            # 폴백: ^PCALL 시도
+            pc2, _ = _yahoo_quote("^PCALL")
+            if pc2 and 0.3 < pc2 < 2.0:
+                result["put_call"] = round(pc2, 2)
+                result["put_call_signal"] = "공포" if pc2 > 1.0 else "탐욕" if pc2 < 0.7 else "중립"
+                print(f"    ✓ Put/Call (PCALL): {pc2:.2f}")
+    except Exception as e:
+        print(f"    ⚠ Put/Call: {e}")
+    time.sleep(0.3)
+
+    # 2. 모멘텀: S&P500 현재가 vs 125일 이동평균
+    try:
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/^GSPC?range=6mo&interval=1d"
+        data = fetch_json(url)
+        if data:
+            closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+            closes = [c for c in closes if c is not None]
+            if len(closes) >= 125:
+                current = closes[-1]
+                ma125 = sum(closes[-125:]) / 125
+                momentum_pct = round(((current - ma125) / ma125) * 100, 2)
+                # 0~100 스코어 변환 (MA 위 = 높은 점수)
+                momentum_score = max(0, min(100, 50 + momentum_pct * 5))
+                result["momentum"] = round(momentum_score)
+                result["momentum_raw"] = momentum_pct
+                result["momentum_signal"] = f"MA125 대비 {'+' if momentum_pct > 0 else ''}{momentum_pct}%"
+                print(f"    ✓ 모멘텀: {momentum_score} (MA125 {momentum_pct:+.2f}%)")
+    except Exception as e:
+        print(f"    ⚠ 모멘텀: {e}")
+    time.sleep(0.3)
+
+    # 3. 안전자산 수요: TLT vs SPY 20일 상대 수익률
+    try:
+        tlt_url = "https://query1.finance.yahoo.com/v8/finance/chart/TLT?range=1mo&interval=1d"
+        spy_url = "https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=1mo&interval=1d"
+        tlt_data = fetch_json(tlt_url)
+        spy_data = fetch_json(spy_url)
+        if tlt_data and spy_data:
+            tlt_closes = [c for c in tlt_data["chart"]["result"][0]["indicators"]["quote"][0]["close"] if c is not None]
+            spy_closes = [c for c in spy_data["chart"]["result"][0]["indicators"]["quote"][0]["close"] if c is not None]
+            if len(tlt_closes) >= 20 and len(spy_closes) >= 20:
+                tlt_ret = (tlt_closes[-1] - tlt_closes[-20]) / tlt_closes[-20] * 100
+                spy_ret = (spy_closes[-1] - spy_closes[-20]) / spy_closes[-20] * 100
+                # 채권이 주식보다 좋으면 = 안전자산 선호 = 공포
+                safe_haven_spread = round(tlt_ret - spy_ret, 2)
+                # 스코어: 채권 우세 = 높은 공포(낮은 점수), 주식 우세 = 탐욕(높은 점수)
+                safe_score = max(0, min(100, 50 - safe_haven_spread * 5))
+                result["safe_haven"] = round(safe_score)
+                result["safe_haven_spread"] = safe_haven_spread
+                result["safe_haven_signal"] = f"TLT-SPY 20일: {safe_haven_spread:+.2f}%p"
+                print(f"    ✓ 안전자산: {safe_score} (스프레드 {safe_haven_spread:+.2f}%p)")
+    except Exception as e:
+        print(f"    ⚠ 안전자산: {e}")
+    time.sleep(0.3)
+
+    # 4. 정크본드 스프레드: HYG(고수익채) vs LQD(투자등급채)
+    try:
+        hyg_url = "https://query1.finance.yahoo.com/v8/finance/chart/HYG?range=1mo&interval=1d"
+        lqd_url = "https://query1.finance.yahoo.com/v8/finance/chart/LQD?range=1mo&interval=1d"
+        hyg_data = fetch_json(hyg_url)
+        lqd_data = fetch_json(lqd_url)
+        if hyg_data and lqd_data:
+            hyg_closes = [c for c in hyg_data["chart"]["result"][0]["indicators"]["quote"][0]["close"] if c is not None]
+            lqd_closes = [c for c in lqd_data["chart"]["result"][0]["indicators"]["quote"][0]["close"] if c is not None]
+            if len(hyg_closes) >= 20 and len(lqd_closes) >= 20:
+                hyg_ret = (hyg_closes[-1] - hyg_closes[-20]) / hyg_closes[-20] * 100
+                lqd_ret = (lqd_closes[-1] - lqd_closes[-20]) / lqd_closes[-20] * 100
+                # HYG가 LQD보다 좋으면 = 위험선호 = 탐욕
+                junk_spread = round(hyg_ret - lqd_ret, 2)
+                junk_score = max(0, min(100, 50 + junk_spread * 10))
+                result["junk_bond"] = round(junk_score)
+                result["junk_bond_spread"] = junk_spread
+                result["junk_bond_signal"] = f"HYG-LQD 20일: {junk_spread:+.2f}%p"
+                print(f"    ✓ 정크본드: {junk_score} (스프레드 {junk_spread:+.2f}%p)")
+    except Exception as e:
+        print(f"    ⚠ 정크본드: {e}")
+
+    if result:
+        _sentiment_cache = {"data": result, "last": now}
+        print(f"    ✓ 시장심리 {len(result)//2}개 지표 수집 완료")
+
+    return result if result else None
 
 
 # ── SLOW: MVRV Ratio ─────────────────────────────────
@@ -1819,22 +1944,9 @@ def collect_whales():
             print(f"    ⚠ RSS 파싱 에러: {e}")
             continue
 
-    # ── 3차: 데모 데이터 (최후 폴백) ──
-    print("    ⚠ Whale 전체 실패 — 데모 데이터")
-    now_ts = int(time.time())
-    demo_alerts = [
-        {"symbol": "BTC", "amount": 2500, "amount_usd": 325_000_000,
-         "from": "Unknown", "to": "Binance", "timestamp": now_ts - 120, "to_type": "exchange"},
-        {"symbol": "BTC", "amount": 1200, "amount_usd": 156_000_000,
-         "from": "Kraken", "to": "Unknown", "timestamp": now_ts - 300},
-        {"symbol": "USDT", "amount": 80_000_000, "amount_usd": 80_000_000,
-         "from": "Tether", "to": "Binance", "timestamp": now_ts - 600, "to_type": "exchange"},
-        {"symbol": "ETH", "amount": 15000, "amount_usd": 52_500_000,
-         "from": "Unknown", "to": "Coinbase", "timestamp": now_ts - 900, "to_type": "exchange"},
-        {"symbol": "USDC", "amount": 45_000_000, "amount_usd": 45_000_000,
-         "from": "Circle", "to": "Coinbase", "timestamp": now_ts - 1200, "to_type": "exchange"},
-    ]
-    return demo_alerts, 80_000_000, 45_000_000
+    # ── 3차: 전체 실패 시 빈 배열 반환 (가짜 데이터 없음) ──
+    print("    ⚠ Whale 전체 실패 — 데이터 없음")
+    return [], 0, 0
 
 
 # ── 메인 수집 루프 ────────────────────────────────────
@@ -1867,6 +1979,7 @@ def run_once():
         war = collect_war_index()
         celestial = collect_celestial()
         cnn = collect_cnn_fg()
+        sentiment = collect_market_sentiment()
         mvrv = collect_mvrv()
         altseason = collect_altseason()
         stablecoin = collect_stablecoin_flow()
@@ -1882,7 +1995,7 @@ def run_once():
             "yahoo": yahoo, "fred": fred, "okx": okx,
             "kimchi": kimchi, "liquidation": liquidation, "war": war,
             "celestial": celestial,
-            "cnn": cnn, "mvrv": mvrv, "altseason": altseason,
+            "cnn": cnn, "sentiment": sentiment, "mvrv": mvrv, "altseason": altseason,
             "stablecoin": stablecoin, "wallstreet": wallstreet,
             "x_feed": x_feed,
             "whales": whales, "usdt": usdt_inflow, "usdc": usdc_inflow,
@@ -1985,6 +2098,8 @@ def run_once():
             "score": 50, "rating": "NEUTRAL",
             "previous_close": 50, "one_week_ago": 50, "one_month_ago": 50,
         },
+
+        "market_sentiment": sc.get("sentiment") or None,
 
         "correlation": sc.get("correlation") or None,
 
