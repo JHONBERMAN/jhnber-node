@@ -586,10 +586,15 @@ def collect_mvrv():
 
     # 1차: Coinmetrics Community API
     try:
-        url = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics=CapMVRVCur&frequency=1d&page_size=1&sort=desc"
+        # start_time을 어제로 설정해서 최신 1개만 가져옴
+        from datetime import timedelta
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%d")
+        url = f"https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics=CapMVRVCur&frequency=1d&start_time={yesterday}&page_size=10"
         data = fetch_json(url)
         if data and data.get("data"):
-            val = round(safe_float(data["data"][0].get("CapMVRVCur", 0)), 2)
+            # 마지막 항목이 최신
+            latest = data["data"][-1]
+            val = round(safe_float(latest.get("CapMVRVCur", 0)), 2)
             if val > 0:
                 if val > 3.5:
                     analysis = f'MVRV <span style="color:var(--red)">{val}</span> — 🔴 과열. 역사적 고점 구간.'
