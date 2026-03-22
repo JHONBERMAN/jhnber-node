@@ -716,6 +716,16 @@
     0%,100% { opacity: 0.4; }
     50% { opacity: 1; }
   }
+  @keyframes flashGreen {
+    0% { text-shadow: 0 0 12px rgba(0,255,136,0.8); }
+    100% { text-shadow: none; }
+  }
+  @keyframes flashRed {
+    0% { text-shadow: 0 0 12px rgba(255,68,68,0.8); }
+    100% { text-shadow: none; }
+  }
+  .flash-up { animation: flashGreen 0.6s ease-out; }
+  .flash-down { animation: flashRed 0.6s ease-out; }
   /* Whale alert item */
   .whale-item {
     display: flex;
@@ -843,14 +853,14 @@
     <div class="grid-4 section-gap">
       <div class="card">
         <div class="stat-big">
-          <div class="stat-num up" id="ovBtcPrice">---</div>
+          <div class="stat-num" id="ovBtcPrice">---</div>
           <div class="stat-label">BTC</div>
           <div class="ticker-change up" id="ovBtcChange">--</div>
         </div>
       </div>
       <div class="card">
         <div class="stat-big">
-          <div class="stat-num" style="color:var(--green)" id="ovSpx">---</div>
+          <div class="stat-num" id="ovSpx">---</div>
           <div class="stat-label">S&P 500</div>
           <div class="ticker-change" style="color:var(--text2)" id="ovSpxChange">--</div>
         </div>
@@ -864,7 +874,7 @@
       </div>
       <div class="card">
         <div class="stat-big">
-          <div class="stat-num" style="color:var(--gold)" id="ovKospi">---</div>
+          <div class="stat-num" id="ovKospi">---</div>
           <div class="stat-label">KOSPI</div>
           <div class="ticker-change" style="color:var(--text2)" id="ovKospiChange">--</div>
         </div>
@@ -1116,7 +1126,7 @@
       <div class="card-title"><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> 원자재 · CME 실시간 <span style="margin-left:auto;font-size:11px;color:var(--text2)">업데이트: <span id="commodityUpdated">--</span></span></div>
       <div style="display:grid;grid-template-columns:1fr 1px 1fr;gap:0;">
         <div style="padding-right:16px;">
-          <div class="ticker-item"><div><div class="ticker-name">GOLD</div><div class="ticker-sub">금 (XAU/USD)</div></div><div><div class="ticker-price up" id="goldPrice">--</div></div></div>
+          <div class="ticker-item"><div><div class="ticker-name">GOLD</div><div class="ticker-sub">금 (XAU/USD)</div></div><div><div class="ticker-price" id="goldPrice">--</div></div></div>
           <div class="ticker-item"><div><div class="ticker-name">WTI OIL</div><div class="ticker-sub">원유 (CL · CME)</div></div><div><div class="ticker-price" id="oilPrice">--</div></div></div>
           <div class="ticker-item"><div><div class="ticker-name">NAT GAS</div><div class="ticker-sub">천연가스 (NG · CME)</div></div><div><div class="ticker-price" id="natgasPrice">--</div></div></div>
         </div>
@@ -2356,7 +2366,7 @@ async function fetchCrypto() {
     if (btc) {
       const chg = btc.price_change_percentage_24h || 0;
       const ovBtc = document.getElementById('ovBtcPrice');
-      if (ovBtc) { ovBtc.textContent = '$' + btc.current_price.toLocaleString(); ovBtc.className = 'stat-num ' + (chg >= 0 ? 'up' : 'down'); }
+      if (ovBtc) { ovBtc.textContent = '$' + btc.current_price.toLocaleString(); ovBtc.className = 'stat-num ' + (chg >= 0 ? 'up' : 'down'); flashElement(ovBtc, chg >= 0); }
       const ovBtcChg = document.getElementById('ovBtcChange');
       if (ovBtcChg) { ovBtcChg.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%'; ovBtcChg.className = 'ticker-change ' + (chg >= 0 ? 'up' : 'down'); }
       const ovBtc24h = document.getElementById('ovBtc24h');
@@ -2364,11 +2374,11 @@ async function fetchCrypto() {
     }
     // Overview mini tickers
     const eth = coins.find(c => c.id === 'ethereum');
-    if (eth) { const el = document.getElementById('ovEthMini'); if (el) el.textContent = '$' + eth.current_price.toLocaleString(); }
+    if (eth) { const el = document.getElementById('ovEthMini'); if (el) { el.textContent = '$' + eth.current_price.toLocaleString(); el.style.color = (eth.price_change_percentage_24h||0) >= 0 ? 'var(--green)' : 'var(--red)'; } }
     const sol = coins.find(c => c.id === 'solana');
-    if (sol) { const el = document.getElementById('ovSol'); if (el) el.textContent = '$' + sol.current_price.toLocaleString(); }
+    if (sol) { const el = document.getElementById('ovSol'); if (el) { el.textContent = '$' + sol.current_price.toLocaleString(); el.style.color = (sol.price_change_percentage_24h||0) >= 0 ? 'var(--green)' : 'var(--red)'; } }
     const xrp = coins.find(c => c.id === 'ripple');
-    if (xrp) { const el = document.getElementById('ovXrp'); if (el) el.textContent = '$' + xrp.current_price.toFixed(3); }
+    if (xrp) { const el = document.getElementById('ovXrp'); if (el) { el.textContent = '$' + xrp.current_price.toFixed(3); el.style.color = (xrp.price_change_percentage_24h||0) >= 0 ? 'var(--green)' : 'var(--red)'; } }
 
     // market panel — TOP20 리스트 (CMC 기준, 스테이블/랩핑 제외)
     const cryptoList = document.getElementById('cryptoList');
@@ -2536,6 +2546,13 @@ function updateTimestamp(id) {
     const now = new Date();
     el.textContent = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
+}
+
+function flashElement(el, isUp) {
+  if (!el) return;
+  el.classList.remove('flash-up', 'flash-down');
+  void el.offsetWidth; // reflow 트리거 — 애니메이션 리셋
+  el.classList.add(isUp ? 'flash-up' : 'flash-down');
 }
 
 // ── Auto-refresh ──
@@ -3077,7 +3094,7 @@ async function fetchOnchainData() {
         if (!val) return;
         const cls = chg >= 0 ? 'up' : 'down';
         const arrow = chg >= 0 ? '↑' : '↓';
-        if (el) { el.textContent = val.toLocaleString(undefined,{maximumFractionDigits:0}); el.className = 'stat-num ' + cls; }
+        if (el) { el.textContent = val.toLocaleString(undefined,{maximumFractionDigits:0}); el.className = 'stat-num ' + cls; flashElement(el, chg >= 0); }
         if (chgEl) { chgEl.textContent = (chg>=0?'+':'') + chg.toFixed(2) + '% ' + arrow; chgEl.className = 'ticker-change ' + cls; }
       }
       setOvStat('ovSpx','ovSpxChange', m.spx, m.spx_chg);
@@ -3098,12 +3115,12 @@ async function fetchOnchainData() {
       // DXY
       if (m.dxy) { const el = document.getElementById('ovDxy'); if (el) el.textContent = m.dxy.toFixed(2); const fEl = document.getElementById('forexDxy'); if (fEl) fEl.textContent = m.dxy.toFixed(2); }
       // 원자재
-      if (m.gold) { const el = document.getElementById('goldPrice'); if (el) { el.textContent = '$' + m.gold.toLocaleString(); el.className = 'ticker-price ' + (m.gold_chg>=0?'up':'down'); } const ov = document.getElementById('ovGold'); if (ov) ov.textContent = '$' + m.gold.toLocaleString(); }
-      if (m.silver) { const el = document.getElementById('silverPrice'); if (el) el.textContent = '$' + m.silver.toFixed(2); const ov = document.getElementById('ovSilver'); if (ov) ov.textContent = '$' + m.silver.toFixed(2); }
-      if (m.oil) { const el = document.getElementById('oilPrice'); if (el) el.textContent = '$' + m.oil.toFixed(2); }
-      if (m.brent) { const el = document.getElementById('brentPrice'); if (el) el.textContent = '$' + m.brent.toFixed(2); }
-      if (m.natgas) { const el = document.getElementById('natgasPrice'); if (el) el.textContent = '$' + m.natgas.toFixed(2); }
-      if (m.copper) { const el = document.getElementById('copperPrice'); if (el) el.textContent = '$' + m.copper.toFixed(2); }
+      if (m.gold) { const el = document.getElementById('goldPrice'); if (el) { el.textContent = '$' + m.gold.toLocaleString(); el.className = 'ticker-price ' + (m.gold_chg>=0?'up':'down'); flashElement(el, m.gold_chg>=0); } const ov = document.getElementById('ovGold'); if (ov) ov.textContent = '$' + m.gold.toLocaleString(); }
+      if (m.silver) { const el = document.getElementById('silverPrice'); if (el) { el.textContent = '$' + m.silver.toFixed(2); el.className = 'ticker-price ' + (m.silver_chg>=0?'up':'down'); flashElement(el, m.silver_chg>=0); } const ov = document.getElementById('ovSilver'); if (ov) ov.textContent = '$' + m.silver.toFixed(2); }
+      if (m.oil) { const el = document.getElementById('oilPrice'); if (el) { el.textContent = '$' + m.oil.toFixed(2); el.className = 'ticker-price ' + (m.oil_chg>=0?'up':'down'); flashElement(el, m.oil_chg>=0); } }
+      if (m.brent) { const el = document.getElementById('brentPrice'); if (el) { el.textContent = '$' + m.brent.toFixed(2); el.className = 'ticker-price ' + (m.brent_chg>=0?'up':'down'); flashElement(el, m.brent_chg>=0); } }
+      if (m.natgas) { const el = document.getElementById('natgasPrice'); if (el) { el.textContent = '$' + m.natgas.toFixed(2); el.className = 'ticker-price ' + (m.natgas_chg>=0?'up':'down'); flashElement(el, m.natgas_chg>=0); } }
+      if (m.copper) { const el = document.getElementById('copperPrice'); if (el) { el.textContent = '$' + m.copper.toFixed(2); el.className = 'ticker-price ' + (m.copper_chg>=0?'up':'down'); flashElement(el, m.copper_chg>=0); } }
       // FRED
       if (m.fed_rate) { const el = document.getElementById('fedRate'); if (el) el.textContent = m.fed_rate.toFixed(2) + '%'; }
       if (m.treasury_10y) { const el = document.getElementById('treasury10y'); if (el) el.textContent = m.treasury_10y.toFixed(2) + '%'; }
@@ -3132,7 +3149,7 @@ async function fetchOnchainData() {
       const stockEl = document.getElementById('stockList');
       if (stockEl) {
         let html = '';
-        [{k:'spx',n:'S&P 500',s:'미국 대형주 500'},{k:'ndx',n:'NASDAQ 100',s:'나스닥 기술주 100'},{k:'dji',n:'DOW 30',s:'다우존스 산업평균'},{k:'kospi',n:'KOSPI',s:'한국 종합주가지수'}].forEach(i => {
+        [{k:'spx',n:'S&P 500',s:'미국 대형주 500'},{k:'ndx',n:'NASDAQ 100',s:'나스닥 기술주 100'},{k:'dji',n:'DOW 30',s:'다우존스 산업평균'},{k:'kospi',n:'KOSPI',s:'한국 종합주가지수'},{k:'dxy',n:'DXY',s:'달러 인덱스'},{k:'vix',n:'VIX',s:'변동성 지수'}].forEach(i => {
           if (m[i.k]) {
             const chg = m[i.k+'_chg']||0;
             const cls = chg >= 0 ? 'up' : 'down';
