@@ -244,7 +244,10 @@ def _yahoo_quote(ticker):
 
 
 def collect_yahoo_changes(hl_data):
-    """Yahoo Finance → 변동률 + DXY/VIX + M7 변동률"""
+    """Yahoo Finance → 변동률 + DXY/VIX + M7 (가격+변동률)
+    
+    M7 전략: HL HIP-3에서 가격을 못 가져왔으면 Yahoo에서 가격도 가져옴.
+    """
     print("  📊 Yahoo 변동률…")
     out = {}
 
@@ -256,14 +259,26 @@ def collect_yahoo_changes(hl_data):
             out[key] = price
         time.sleep(0.15)
 
-    # M7 변동률
+    # M7 빅테크: 변동률 + HL 미수집 시 가격도 폴백
     m7_changes = {}
+    m7_fallback = []  # HL에서 M7 못 가져왔을 때 Yahoo 가격으로 대체
+    hl_m7 = hl_data.get("m7", [])
+    hl_m7_syms = {item["sym"] for item in hl_m7} if hl_m7 else set()
+
     for ticker in M7_TICKERS:
         price, chg = _yahoo_quote(ticker)
         if chg is not None:
             m7_changes[ticker] = chg
+        # HL에서 이 종목 가격을 못 가져왔으면 Yahoo 가격 사용
+        if price is not None and ticker not in hl_m7_syms:
+            m7_fallback.append({"sym": ticker, "price": price, "chg": chg or 0})
         time.sleep(0.15)
+
     out["_m7_changes"] = m7_changes
+    out["_m7_fallback"] = m7_fallback
+
+    if m7_fallback:
+        print(f"    📈 M7 Yahoo 폴백: {', '.join(f['sym'] for f in m7_fallback)}")
 
     return out
 
@@ -518,6 +533,29 @@ def collect_cnn_fg():
             print(f"    ⚠ CNN {url[:60]}…{status} {e}")
             continue
 
+    print("    ❌ CNN 직접 API 실패 — fear-greed 패키지 시도…")
+
+    # 3차: fear-greed PyPI 패키지 (pip install fear-greed)
+    try:
+        import fear_greed
+        data = fear_greed.get()
+        if data and "score" in data:
+            score = round(data["score"])
+            rating = data.get("rating", "")
+            hist = data.get("history", {})
+            print(f"    ✓ CNN F&G (via PyPI): {score} ({rating})")
+            return {
+                "score": score,
+                "rating": rating,
+                "previous_close": round(hist.get("1w", 0)),
+                "one_week_ago": round(hist.get("1w", 0)),
+                "one_month_ago": round(hist.get("1m", 0)),
+            }
+    except ImportError:
+        print("    ⚠ fear-greed 미설치 — pip install fear-greed 필요")
+    except Exception as e:
+        print(f"    ⚠ fear-greed 패키지 에러: {e}")
+
     print("    ❌ CNN F&G 전체 실패")
     return None
 
@@ -629,7 +667,7 @@ def run_once():
     do_slow = (now - _last_slow) >= SLOW_INTERVAL or not _slow_cache
 
     print(f"\n{'=' * 50}")
-    print(f"  ⚡ v6.0 {'FULL' if do_slow else 'FAST'} ({datetime.now().strftime('%H:%M:%S')})")
+    print(f"  ⚡ v6.1 {'FULL' if do_slow else 'FAST'} ({datetime.now().strftime('%H:%M:%S')})")
     print(f"{'=' * 50}")
 
     # ── FAST: 항상 실행 ──
@@ -671,13 +709,24 @@ def run_once():
     # 마켓 데이터 병합 (HL + Yahoo + FRED)
     market = {**hl, **yahoo, **fred}
 
-    # M7 변동률 적용
+    # M7 변동률 적용 + Yahoo 폴백
     m7_changes = yahoo.get("_m7_changes", {})
-    if market.get("m7"):
+    m7_fallback = yahoo.get("_m7_fallback", [])
+
+    if market.get("m7") and len(market["m7"]) > 0:
+        # HL에서 M7 가져온 경우: Yahoo 변동률만 적용
         for item in market["m7"]:
             if item["sym"] in m7_changes:
                 item["chg"] = m7_changes[item["sym"]]
+    elif m7_fallback:
+        # HL에서 M7 못 가져온 경우: Yahoo 가격+변동률 전체 사용
+        market["m7"] = m7_fallback
+        print(f"    📈 M7: Yahoo 폴백 사용 ({len(m7_fallback)}개)")
+    else:
+        market["m7"] = []
+
     market.pop("_m7_changes", None)
+    market.pop("_m7_fallback", None)
 
     # null 방지 기본값
     usdt = sc.get("usdt", 0)
@@ -750,7 +799,7 @@ def run_once():
 def run_loop():
     """무한 루프 실행"""
     print("=" * 50)
-    print("  ⚡ JHONBER NODE v6.0")
+    print("  ⚡ JHONBER NODE v6.1")
     print("=" * 50)
     while True:
         try:

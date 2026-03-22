@@ -637,7 +637,19 @@ function updateTime() {
 }
 
 function flash(el, up) { if(!el) return; el.classList.remove('flash-up','flash-down'); void el.offsetWidth; el.classList.add(up?'flash-up':'flash-down'); }
-function ts(id) { const el=$(id); if(el) el.textContent = new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+
+// 타임스탬프: 각 소스별 독립 시각 관리
+const _tsMap = {};
+function ts(id, source) {
+  // source가 지정되면 해당 소스의 최종 갱신 시각 기록
+  if (source) _tsMap[id] = source;
+  const el = $(id);
+  if (!el) return;
+  const t = _tsMap[id] || new Date();
+  const d = t instanceof Date ? t : new Date(t);
+  if (isNaN(d.getTime())) { el.textContent = '--'; return; }
+  el.textContent = d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
 
 function getBSGrade(v) {
   if(v>=80) return {kr:'매우탐욕',color:'#00ff88'};
@@ -682,7 +694,7 @@ async function fetchCrypto() {
         return `<div class="ticker-item"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--text2);width:18px;text-align:right;font-family:'Space Mono',monospace">${i+1}</span><div><div class="ticker-name">${c.symbol.toUpperCase()}</div><div class="ticker-sub">${c.name} · $${mc}</div></div></div><div><div class="ticker-price ${cls}">${ps}</div><div class="ticker-change ${cls}">${chg>=0?'+':''}${chg.toFixed(2)}%</div></div></div>`;
       }).join('');
     }
-    ts('cryptoUpdated');
+    ts('cryptoUpdated', new Date());
   } catch(e) { console.warn('CoinGecko:',e); }
 }
 
@@ -694,7 +706,7 @@ async function fetchForex() {
     const fl = $('forexList');
     if(fl) fl.innerHTML = [['USD/KRW','달러/원','₩'+r.KRW.toFixed(0)],['USD/JPY','달러/엔','¥'+r.JPY.toFixed(2)],['EUR/USD','유로/달러','$'+(1/r.EUR).toFixed(4)],['USD/CNY','달러/위안','¥'+r.CNY.toFixed(4)],['AUD/USD','호주달러','$'+(1/r.AUD).toFixed(4)],['GBP/USD','파운드','$'+(1/r.GBP).toFixed(4)],['DXY','달러인덱스','<span id="forexDxy">--</span>']].map(([n,s,v]) => `<div class="ticker-item"><div><div class="ticker-name">${n}</div><div class="ticker-sub">${s}</div></div><div><div class="ticker-price" style="color:var(--text)">${v}</div></div></div>`).join('');
     if($('ovKrw')) $('ovKrw').textContent='₩'+r.KRW.toFixed(0);
-    ts('forexUpdated');
+    ts('forexUpdated', new Date());
   } catch(e) { console.warn('Forex:',e); }
 }
 
@@ -742,7 +754,7 @@ async function fetchFearGreed() {
     // Astro link
     const fa=$('fgAstro');
     if(fa) fa.textContent = val<20?'매우공포 구간 — 화성-토성 스퀘어가 시장 공포를 극대화. 블록스트리트 기준 기관 매수 구간.':val<40?'공포 구간 — 토성의 억압 에너지가 시장 심리를 짓누르는 중.':val<60?'중립 구간 — 목성과 토성의 균형이 시장 방향성을 탐색.':val<80?'탐욕 구간 — 목성의 확장 에너지가 시장 낙관론을 견인.':'매우탐욕 구간 — 태양-목성 합이 과도한 탐욕을 부추기는 중.';
-    ts('fgUpdated'); ts('fgCnnUpdated');
+    ts('fgUpdated', new Date()); ts('fgCnnUpdated', new Date());
   } catch(e) { console.warn('F&G:',e); }
 }
 
@@ -804,8 +816,9 @@ async function fetchOnchainData() {
     if(data.liquidation){const lq=data.liquidation;if($('liqPriceTop'))$('liqPriceTop').textContent='$'+lq.price_high.toLocaleString();if($('liqPriceMid'))$('liqPriceMid').textContent='$'+lq.current_price.toLocaleString();if($('liqPriceBot'))$('liqPriceBot').textContent='$'+lq.price_low.toLocaleString();if($('liqCurrentPrice'))$('liqCurrentPrice').textContent='$'+lq.current_price.toLocaleString();if($('liqLongZone')&&lq.long_liq_zone)$('liqLongZone').textContent=lq.long_liq_zone.description+' 구간에 롱 청산 밀집.';if($('liqShortZone')&&lq.short_liq_zone)$('liqShortZone').textContent=lq.short_liq_zone.description+' 구간에 쇼트 청산 밀집.';if($('liqMagnet'))$('liqMagnet').textContent='$'+lq.magnet_price.toLocaleString()+' — 고래 타겟 가격.';renderLiqBars(lq);}
     // CNN real data
     if(data.cnn_fear_greed){const cfg=data.cnn_fear_greed,s=cfg.score,g=getBSGrade(s);if($('ovCnnFG')){$('ovCnnFG').textContent=s;$('ovCnnFG').style.color=g.color;}if($('ovCnnFGLabel')){$('ovCnnFGLabel').textContent=g.kr;$('ovCnnFGLabel').style.color=g.color;$('ovCnnFGLabel').classList.remove('loading-pulse');}if($('cnnArc'))$('cnnArc').setAttribute('stroke-dashoffset',251-(s/100*251));if($('cnnNum')){$('cnnNum').textContent=s;$('cnnNum').setAttribute('fill',g.color);}if($('cnnLabel')){$('cnnLabel').textContent=g.kr;$('cnnLabel').setAttribute('fill',g.color);}}
-    // Timestamps
-    ['stockUpdated','commodityUpdated','m7Updated','cvdUpdated','kimchiUpdated','liqUpdated','warUpdated','mvrvUpdated','fedUpdated','liqMonitorUpdated','whaleUpdated'].forEach(id=>ts(id));
+    // Timestamps — data.json의 last_updated를 서버 수집 시각으로 사용
+    const serverTime = data.last_updated ? new Date(data.last_updated) : new Date();
+    ['stockUpdated','commodityUpdated','m7Updated','cvdUpdated','kimchiUpdated','liqUpdated','warUpdated','mvrvUpdated','fedUpdated','liqMonitorUpdated','whaleUpdated'].forEach(id=>ts(id, serverTime));
   } catch(e) {
     console.warn('data.json:',e);
     renderLiqBars(null);
