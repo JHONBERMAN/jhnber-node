@@ -2260,16 +2260,27 @@ def run_once():
     market.pop("_m7_fallback", None)
 
     # ── 실제 가격 변동 감지 → market_updated 갱신 ──
+    # 소수점 노이즈 제거 후 비교: 지수=정수, 환율=소수2자리, VIX/DXY=소수1자리
+    # → 주말·API 부동소수 미세변동으로 인한 오갱신 방지
     import hashlib as _hl
-    # BTC는 24/7 자산이므로 제외 — 전통 시장(지수·환율)만 변동 감지
-    _chk = {k: market.get(k) for k in
-            ["spx", "ndx", "dji", "vix", "dxy", "n225", "hsi",
-             "forex_krw", "forex_jpy", "forex_eur"]}
+    def _q(v, d): return round(v, d) if v else None
+    _chk = {
+        "spx":   _q(market.get("spx"),   0),
+        "ndx":   _q(market.get("ndx"),   0),
+        "dji":   _q(market.get("dji"),   0),
+        "n225":  _q(market.get("n225"),  0),
+        "hsi":   _q(market.get("hsi"),   0),
+        "vix":   _q(market.get("vix"),   1),
+        "dxy":   _q(market.get("dxy"),   1),
+        "forex_krw": _q(market.get("forex_krw"), 0),
+        "forex_jpy": _q(market.get("forex_jpy"), 2),
+        "forex_eur": _q(market.get("forex_eur"), 2),
+    }
     _new_hash = _hl.md5(json.dumps(_chk, sort_keys=True).encode()).hexdigest()[:12]
     if _new_hash != _market_hash:
         _market_hash = _new_hash
         _market_data_time = datetime.now(timezone.utc).isoformat()
-        print("  🔄 시장 데이터 변동 → market_updated 갱신")
+        print(f"  🔄 시장 데이터 변동 → market_updated 갱신 {_chk}")
 
     # null 방지 기본값
     usdt = sc.get("usdt", 0)
