@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 """
-X-INTELLIGENCE : JHONBER — NODE v6.0
+X-INTELLIGENCE : JHONBER — NODE v7.7
 =====================================
-통합 데이터 수집기 — 클린 리빌드
+통합 데이터 수집기 — Twelve Data 통합 리빌드
 
 아키텍처:
-  FAST (60초): Hyperliquid allMids → 크립토·원자재·지수 가격
-  SLOW (5분):  Yahoo 변동률, OKX 파생, FRED, CNN F&G, MVRV,
-               전쟁지수, 김프, 청산맵, 알트시즌, 고래 알림
+  FAST (60초):  Hyperliquid allMids → 크립토·원자재 가격
+  TD   (2분):   Twelve Data Batch → 지수·환율·M7 주식
+  SLOW (5분):   OKX 파생, FRED, CNN F&G, MVRV,
+                전쟁지수, 김프, 청산맵, 알트시즌, 고래 알림
 
 데이터 소스:
-  - Hyperliquid (가격)     : 네이티브 크립토 + HIP-3 원자재/지수
-  - Yahoo Finance (변동률) : 서버사이드 비공식 API
-  - OKX (파생)            : 펀딩레이트, 롱/쇼트, CVD
-  - FRED (매크로)         : Fed 기준금리, 10Y 국채, 대차대조표
-  - CoinGecko (도미넌스)  : BTC 도미넌스 (유일한 CG 호출)
-  - 업비트 + ExchangeRate : 김프
-  - Google News RSS       : 전쟁 키워드 스캔
-  - CNN (F&G)             : 미국 주식 공포탐욕
-  - Blockchain.com (MVRV) : BTC MVRV Ratio
-  - BlockchainCenter      : 알트시즌 인덱스
-  - Whale Alert            : 고래 이동 (API 키 필요)
+  - Twelve Data (지수·환율·M7) : SPX/IXIC/DJI/DXY/VIX/N225/HSI + 6환율 + M7
+  - Hyperliquid (크립토·원자재) : 네이티브 퍼프 + HIP-3 원자재
+  - OKX (파생)                 : 펀딩레이트, 롱/쇼트, CVD
+  - FRED (매크로)              : Fed 기준금리, 10Y 국채, 대차대조표
+  - CoinGecko (도미넌스)       : BTC 도미넌스 (유일한 CG 호출)
+  - 업비트                     : 김프
+  - Google News RSS            : 전쟁 키워드 스캔
+  - CNN (F&G)                  : 미국 주식 공포탐욕
+  - Blockchain.com (MVRV)      : BTC MVRV Ratio
+  - BlockchainCenter           : 알트시즌 인덱스
+  - Whale Alert                : 고래 이동 (API 키 필요)
 """
 
 import json
@@ -31,14 +32,66 @@ import time
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 
+
+# ── .env 로더 (외부 패키지 불필요) ──────────────────
+def _load_dotenv():
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.exists(env_path):
+        return
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
+_load_dotenv()
+
 # ── 설정 ──────────────────────────────────────────────
-WHALE_KEY = os.environ.get("WHALE_ALERT_API_KEY", "")
-OUT_FILE = "data.json"
-FAST_INTERVAL = 60   # 초
-SLOW_INTERVAL = 300  # 초
+WHALE_KEY        = os.environ.get("WHALE_ALERT_API_KEY", "")
+TWELVE_DATA_KEY  = os.environ.get("TWELVE_DATA_API_KEY", "")
+OUT_FILE         = "data.json"
+FAST_INTERVAL    = 60    # 초 (Hyperliquid 크립토)
+TD_INTERVAL      = 120   # 초 (Twelve Data, 하루 ~720회 ≤ 800회 한도)
+SLOW_INTERVAL    = 300   # 초 (5분 주기 슬로우 데이터)
 
 _last_slow = 0
-_slow_cache = {}
+_slow_cache: dict = {}
+_last_td   = 0
+_td_cache:  dict = {}
+
+# ── Twelve Data 배치 심볼 ──────────────────────────────
+TD_SYMBOLS = [
+    # 주요 지수
+    "SPX", "IXIC", "DJI", "DXY", "VIX", "N225", "HSI",
+    # 환율 (6개)
+    "EUR/USD", "USD/KRW", "USD/JPY", "USD/CNY", "AUD/USD", "GBP/USD",
+    # M7 빅테크
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
+]
+
+# data.json 지수 키 매핑
+TD_INDEX_MAP = {
+    "SPX":  ("spx",  "spx_chg"),
+    "IXIC": ("ndx",  "ndx_chg"),
+    "DJI":  ("dji",  "dji_chg"),
+    "DXY":  ("dxy",  "dxy_chg"),
+    "VIX":  ("vix",  "vix_chg"),
+    "N225": ("n225", "n225_chg"),
+    "HSI":  ("hsi",  "hsi_chg"),
+}
+
+# data.json 환율 키 매핑
+TD_FOREX_MAP = {
+    "EUR/USD": "forex_eur",
+    "USD/KRW": "forex_krw",
+    "USD/JPY": "forex_jpy",
+    "USD/CNY": "forex_cny",
+    "AUD/USD": "forex_aud",
+    "GBP/USD": "forex_gbp",
+}
+
+TD_M7_ORDER = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]
 
 # ── 유틸리티 ──────────────────────────────────────────
 
@@ -2023,23 +2076,107 @@ def collect_whales(btc_price=87000, eth_price=2100):
     return result, 0, 0
 
 
+# ── Twelve Data Batch ─────────────────────────────────
+
+def collect_twelve_data() -> dict:
+    """Twelve Data Batch Quote — 지수·환율·M7 (2분 주기)
+
+    API 한도: 하루 ~720회 호출 (2분 간격) ≤ 800회 한도
+    실패 시 빈 dict 반환 → 호출 측에서 이전 캐시 유지
+    """
+    if not TWELVE_DATA_KEY:
+        print("    ⚠ TWELVE_DATA_API_KEY 없음 — TD 수집 건너뜀")
+        return {}
+
+    symbols_str = ",".join(TD_SYMBOLS)
+    url = (
+        "https://api.twelvedata.com/quote"
+        f"?symbol={symbols_str}"
+        f"&apikey={TWELVE_DATA_KEY}"
+    )
+    print(f"  📡 Twelve Data Batch ({len(TD_SYMBOLS)}개 심볼)…")
+    raw = fetch_raw(url, timeout=30)
+    if not raw:
+        print("    ⚠ TD 응답 없음 — 이전 캐시 유지")
+        return {}
+
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"    ⚠ TD JSON 파싱 실패: {e}")
+        return {}
+
+    # 단일 심볼 요청이면 dict 직접 반환 → 리스트 형태로 통일
+    if isinstance(data, dict) and "symbol" in data:
+        sym = data.get("symbol", "")
+        data = {sym: data}
+
+    out: dict = {}
+    m7: list = []
+    ok_idx = ok_fx = ok_m7 = 0
+
+    for sym, item in data.items():
+        if not isinstance(item, dict):
+            continue
+        if item.get("status") == "error":
+            print(f"    ⚠ TD [{sym}]: {item.get('message', 'unknown')}")
+            continue
+
+        close = safe_float(item.get("close", 0))
+        prev  = safe_float(item.get("previous_close") or close)
+        chg   = round(((close - prev) / prev * 100) if prev else 0.0, 2)
+        close = round(close, 4)
+
+        if sym in TD_INDEX_MAP:
+            k, kc = TD_INDEX_MAP[sym]
+            out[k]  = round(close, 2)
+            out[kc] = chg
+            ok_idx += 1
+        elif sym in TD_FOREX_MAP:
+            out[TD_FOREX_MAP[sym]] = round(close, 4)
+            ok_fx += 1
+        elif sym in TD_M7_ORDER:
+            m7.append({"sym": sym, "price": round(close, 2), "chg": chg})
+            ok_m7 += 1
+
+    # M7 원래 순서 정렬
+    order_map = {s: i for i, s in enumerate(TD_M7_ORDER)}
+    m7.sort(key=lambda x: order_map.get(x["sym"], 99))
+    if m7:
+        out["m7"] = m7
+
+    print(f"    ✅ TD 완료: 지수 {ok_idx}개 | 환율 {ok_fx}개 | M7 {ok_m7}개")
+    return out
+
+
 # ── 메인 수집 루프 ────────────────────────────────────
 
 def run_once():
     """1회 데이터 수집 + data.json 저장"""
-    global _last_slow, _slow_cache
+    global _last_slow, _slow_cache, _last_td, _td_cache
 
     now = time.time()
     do_slow = (now - _last_slow) >= SLOW_INTERVAL or not _slow_cache
+    do_td   = (now - _last_td)   >= TD_INTERVAL   or not _td_cache
 
     print(f"\n{'=' * 50}")
-    print(f"  ⚡ v6.1 {'FULL' if do_slow else 'FAST'} ({datetime.now().strftime('%H:%M:%S')})")
+    print(f"  ⚡ v7.7 {'FULL' if do_slow else 'FAST'} | TD={'갱신' if do_td else '캐시'} ({datetime.now().strftime('%H:%M:%S')})")
     print(f"{'=' * 50}")
 
-    # ── FAST: 항상 실행 ──
+    # ── FAST: Hyperliquid 크립토·원자재 ──
     hl = collect_hl_prices()
     btc = hl.get("btc_usd") or hl.get("hl_btc_mark") or 69000
     hl_oi = hl.get("hl_btc_oi", 0)
+
+    # ── TD: Twelve Data 지수·환율·M7 (2분마다) ──
+    if do_td:
+        td_fresh = collect_twelve_data()
+        if td_fresh:          # 성공 시만 캐시 갱신 (실패 시 이전 데이터 유지)
+            _td_cache = td_fresh
+        _last_td = now
+    else:
+        print("  (TD 캐시 사용)")
+    td = _td_cache
 
     # ── SLOW: 5분마다 ──
     if do_slow:
@@ -2089,24 +2226,32 @@ def run_once():
     fred = sc.get("fred", {})
     okx = sc.get("okx", {})
 
-    # 마켓 데이터 병합 (HL + Yahoo + FRED)
+    # 마켓 데이터 병합 (HL + Yahoo + FRED + TD)
+    # 우선순위: TD 데이터 > Yahoo > HL (지수/환율은 TD가 가장 정확)
     market = {**hl, **yahoo, **fred}
 
-    # M7 변동률 적용 + Yahoo 폴백
-    m7_changes = yahoo.get("_m7_changes", {})
-    m7_fallback = yahoo.get("_m7_fallback", [])
+    # TD 데이터 적용 (지수, 환율, M7 전체 덮어쓰기)
+    if td:
+        for k, v in td.items():
+            market[k] = v
+        if td.get("m7"):
+            print(f"    📈 M7: Twelve Data ({len(td['m7'])}개) 적용")
 
-    if market.get("m7") and len(market["m7"]) > 0:
-        # HL에서 M7 가져온 경우: Yahoo 변동률만 적용
-        for item in market["m7"]:
-            if item["sym"] in m7_changes:
-                item["chg"] = m7_changes[item["sym"]]
-    elif m7_fallback:
-        # HL에서 M7 못 가져온 경우: Yahoo 가격+변동률 전체 사용
-        market["m7"] = m7_fallback
-        print(f"    📈 M7: Yahoo 폴백 사용 ({len(m7_fallback)}개)")
-    else:
-        market["m7"] = []
+    # TD M7 없을 경우 Yahoo 폴백
+    if not market.get("m7"):
+        m7_changes = yahoo.get("_m7_changes", {})
+        m7_fallback = yahoo.get("_m7_fallback", [])
+        if m7_fallback:
+            market["m7"] = m7_fallback
+            print(f"    📈 M7: Yahoo 폴백 사용 ({len(m7_fallback)}개)")
+        elif hl.get("m7"):
+            # HL M7에 Yahoo 변동률 적용
+            for item in hl["m7"]:
+                if item["sym"] in m7_changes:
+                    item["chg"] = m7_changes[item["sym"]]
+            market["m7"] = hl["m7"]
+        else:
+            market["m7"] = []
 
     market.pop("_m7_changes", None)
     market.pop("_m7_fallback", None)
@@ -2196,7 +2341,7 @@ def run_once():
 def run_loop():
     """무한 루프 실행"""
     print("=" * 50)
-    print("  ⚡ JHONBER NODE v6.1")
+    print("  ⚡ JHONBER NODE v7.7 — Twelve Data 통합")
     print("=" * 50)
     while True:
         try:

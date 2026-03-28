@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-X-INTELLIGENCE : JHONBER NODE — Flask API Server v7.0
+X-INTELLIGENCE : JHONBER NODE — Flask API Server v7.7
 =====================================================
 data.json 서빙 + 캐시 헤더 최적화 + gzip + CORS
 + 실시간 방문자 카운터 + CDS 데이터
@@ -16,6 +16,20 @@ import threading
 import time
 from collections import defaultdict
 from flask import Flask, Response, request
+
+
+def _load_dotenv():
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.exists(env_path):
+        return
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
+_load_dotenv()
 
 app = Flask(__name__)
 
@@ -241,7 +255,7 @@ def health():
 @app.route("/")
 def root():
     return Response(
-        json.dumps({"service": "JHONBER NODE v7.0", "endpoints": [
+        json.dumps({"service": "JHONBER NODE v7.7", "endpoints": [
             "/data.json", "/health", "/api/visitors", "/api/visitors/ping"
         ]}),
         mimetype="application/json",

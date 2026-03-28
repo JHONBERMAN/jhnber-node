@@ -357,7 +357,7 @@ h1{font-family:'Cinzel Decorative',serif;font-size:clamp(24px,4vw,48px);backgrou
 
 <script>
 /* ═══════════════════════════════════════════════════════
-   X-INTELLIGENCE : JHONBER NODE v6.0 — Frontend Engine
+   X-INTELLIGENCE : JHONBER NODE v7.7 — Frontend Engine
    ═══════════════════════════════════════════════════════ */
 
 const API = 'https://jhnber-node-production.up.railway.app/data.json';
@@ -445,7 +445,7 @@ function buildOverview() {
   </div>
   <!-- 미니 티커 -->
   <div class="mini-ticker-bar section-gap">
-    ${['ETH|ovEthMini','XRP|ovXrp','SOL|ovSol','USD/KRW|ovKrw','GOLD|ovGold','SILVER|ovSilver'].map(s => {
+    ${['ETH|ovEthMini','XRP|ovXrp','SOL|ovSol','USD/KRW|ovKrw','GOLD|ovGold','N225|ovN225Mini','HSI|ovHsiMini'].map(s => {
       const [l,id] = s.split('|');
       return `<div class="mini-ticker-item"><span class="mini-label">${l}</span><span class="mini-val" id="${id}">---</span></div>`;
     }).join('')}
@@ -786,8 +786,9 @@ async function fetchCrypto() {
   } catch(e) { console.warn('CoinGecko:',e); }
 }
 
-// ── ExchangeRate (브라우저 직접) ──
+// ── ExchangeRate (폴백: TD 환율 없을 때만) ──
 async function fetchForex() {
+  if(window._tdForex) return; // TD 환율 데이터 로드 완료 시 건너뜀
   try {
     const d = await(await fetch('https://api.exchangerate-api.com/v4/latest/USD')).json();
     const r=d.rates; if(!r) return;
@@ -860,6 +861,25 @@ async function fetchOnchainData() {
     if(m.vix){const e=$('ovVixValue');if(e){e.textContent=m.vix.toFixed(1);e.style.color=m.vix>35?'var(--red)':m.vix>20?'var(--gold)':'var(--green)';}if($('ovVixGauge'))$('ovVixGauge').style.width=Math.min(100,(m.vix/50)*100)+'%';}
     // DXY
     if(m.dxy){const fe=$('forexDxy');if(fe){const c=(m.dxy_chg||0)>=0;fe.innerHTML=m.dxy.toFixed(2)+` <span style="font-size:11px;color:var(${c?'--green':'--red'})">${c?'+':''}${(m.dxy_chg||0).toFixed(2)}%</span>`;fe.style.color=c?'var(--green)':'var(--red)';}}
+    // N225 / HSI (미니 티커 + 개별 DOM)
+    if(m.n225){const e=$('ovN225Mini');if(e){e.textContent=m.n225.toLocaleString(undefined,{maximumFractionDigits:0});e.style.color=(m.n225_chg||0)>=0?'var(--green)':'var(--red)';}}
+    if(m.hsi){const e=$('ovHsiMini');if(e){e.textContent=m.hsi.toLocaleString(undefined,{maximumFractionDigits:0});e.style.color=(m.hsi_chg||0)>=0?'var(--green)':'var(--red)';}}
+    // TD 환율 → forexList 실시간 갱신 (ExchangeRate API 대체)
+    if(m.forex_krw||m.forex_jpy||m.forex_eur){
+      const fChg=v=>v!=null?` <span style="font-size:11px;color:var(${v>=0?'--green':'--red'})">${v>=0?'+':''}${v.toFixed(2)}%</span>`:'';
+      const fl=$('forexList');
+      if(fl){fl.innerHTML=[
+        ['USD/KRW','달러/원',   m.forex_krw?'₩'+Math.round(m.forex_krw).toLocaleString():'--'],
+        ['USD/JPY','달러/엔',   m.forex_jpy?'¥'+m.forex_jpy.toFixed(2):'--'],
+        ['EUR/USD','유로/달러', m.forex_eur?'$'+m.forex_eur.toFixed(4):'--'],
+        ['USD/CNY','달러/위안', m.forex_cny?'¥'+m.forex_cny.toFixed(4):'--'],
+        ['AUD/USD','호주달러',  m.forex_aud?'$'+m.forex_aud.toFixed(4):'--'],
+        ['GBP/USD','파운드/달러',m.forex_gbp?'$'+m.forex_gbp.toFixed(4):'--'],
+        ['DXY',    '달러인덱스',m.dxy?m.dxy.toFixed(2)+fChg(m.dxy_chg):'--'],
+      ].map(([n,s,v])=>`<div class="ticker-item"><div><div class="ticker-name">${n}</div><div class="ticker-sub">${s}</div></div><div><div class="ticker-price" style="color:var(--text)">${v}</div></div></div>`).join('');
+      window._tdForex=true;ts('forexUpdated',new Date());}
+      if(m.forex_krw&&$('ovKrw'))$('ovKrw').textContent='₩'+Math.round(m.forex_krw).toLocaleString();
+    }
     // Commodities
     [['goldPrice','gold'],['silverPrice','silver'],['oilPrice','oil'],['brentPrice','brent'],['natgasPrice','natgas'],['copperPrice','copper']].forEach(([id,k]) => {
       const el=$(id); if(!el||!m[k]) return;
@@ -875,10 +895,10 @@ async function fetchOnchainData() {
     // BTC Dom
     if(m.btc_dominance){if($('ovBtcDom'))$('ovBtcDom').textContent=m.btc_dominance+'%';if($('ovBtcDomGauge'))$('ovBtcDomGauge').style.width=m.btc_dominance+'%';}
     // M7
-    if(m.m7&&m.m7.length){const el=$('m7List');if(el)el.innerHTML=m.m7.map(r=>{const c=r.chg>=0?'up':'down';return `<div style="padding:10px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px"><div style="display:flex;justify-content:space-between;align-items:center"><div class="ticker-name" style="font-size:12px">${r.sym}</div><div style="text-align:right"><div class="ticker-price ${c}" style="font-size:14px">$${r.price.toLocaleString()}</div><div class="ticker-change ${c}" style="font-size:11px">${r.chg>=0?'+':''}${r.chg.toFixed(2)}%</div></div></div></div>`;}).join('');}
+    if(m.m7&&m.m7.length){const krw=m.forex_krw||0;const el=$('m7List');if(el)el.innerHTML=m.m7.map(r=>{const c=r.chg>=0?'up':'down';const krwStr=krw?`<div style="font-size:10px;color:var(--text2);margin-top:2px">₩${Math.round(r.price*krw).toLocaleString()}</div>`:'';return `<div style="padding:10px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px"><div style="display:flex;justify-content:space-between;align-items:center"><div class="ticker-name" style="font-size:12px">${r.sym}</div><div style="text-align:right"><div class="ticker-price ${c}" style="font-size:14px">$${r.price.toLocaleString()}</div><div class="ticker-change ${c}" style="font-size:11px">${r.chg>=0?'+':''}${r.chg.toFixed(2)}%</div>${krwStr}</div></div></div>`;}).join('');}
     // Stock list
     const sl=$('stockList');
-    if(sl){let h='';[{k:'spx',n:'S&P 500',s:'미국 대형주 500'},{k:'ndx',n:'NASDAQ 100',s:'나스닥 기술주 100'},{k:'dji',n:'DOW 30',s:'다우존스 산업평균'},{k:'kospi',n:'KOSPI',s:'한국 종합주가지수'},{k:'dxy',n:'DXY',s:'달러 인덱스'},{k:'vix',n:'VIX',s:'변동성 지수'}].forEach(i=>{if(m[i.k]){const c=(m[i.k+'_chg']||0)>=0?'up':'down';h+=`<div class="ticker-item"><div><div class="ticker-name">${i.n}</div><div class="ticker-sub">${i.s}</div></div><div><div class="ticker-price ${c}">${m[i.k].toLocaleString()}</div><div class="ticker-change ${c}">${(m[i.k+'_chg']||0)>=0?'+':''}${(m[i.k+'_chg']||0).toFixed(2)}%</div></div></div>`;}});if(h)sl.innerHTML=h;}
+    if(sl){let h='';[{k:'spx',n:'S&P 500',s:'미국 대형주 500'},{k:'ndx',n:'NASDAQ',s:'나스닥 종합지수'},{k:'dji',n:'DOW 30',s:'다우존스 산업평균'},{k:'dxy',n:'DXY',s:'달러 인덱스'},{k:'vix',n:'VIX',s:'변동성 지수'},{k:'kospi',n:'KOSPI',s:'한국 종합주가지수'},{k:'n225',n:'NIKKEI 225',s:'일본 닛케이 지수'},{k:'hsi',n:'HANG SENG',s:'홍콩 항셍지수'}].forEach(i=>{if(m[i.k]){const c=(m[i.k+'_chg']||0)>=0?'up':'down';h+=`<div class="ticker-item"><div><div class="ticker-name">${i.n}</div><div class="ticker-sub">${i.s}</div></div><div><div class="ticker-price ${c}">${m[i.k].toLocaleString()}</div><div class="ticker-change ${c}">${(m[i.k+'_chg']||0)>=0?'+':''}${(m[i.k+'_chg']||0).toFixed(2)}%</div></div></div>`;}});if(h)sl.innerHTML=h;}
     // Funding
     if(data.funding){const f=data.funding;if(f.rate_str&&$('ovFunding')){$('ovFunding').textContent=f.rate_str;$('ovFunding').style.color=f.rate>=0?'var(--green)':'var(--red)';}if(f.long_pct&&$('ovLongShort')){$('ovLongShort').textContent=f.long_pct+'/'+f.short_pct;$('ovLongShort').style.color=f.long_pct>f.short_pct?'var(--green)':'var(--red)';}}
     // Alt season
