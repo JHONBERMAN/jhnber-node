@@ -517,8 +517,8 @@ function buildOverview() {
     <div class="card">
       ${CT(ICONS.starFill,'다가오는 핵심 이벤트')}
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button onclick="showUpcoming('astro',this)" style="flex:1;padding:6px;border:1px solid var(--gold);background:rgba(201,168,76,.15);color:var(--gold);cursor:pointer;font-size:12px;font-family:'Space Mono',monospace">🔮 천체·점성</button>
-        <button onclick="showUpcoming('econ',this)" style="flex:1;padding:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;font-family:'Space Mono',monospace">📅 경제</button>
+        <button onclick="showUpcoming('astro',this)" style="flex:1;padding:8px;border:1px solid var(--gold);background:rgba(201,168,76,.15);color:var(--gold);cursor:pointer;font-size:13px;font-family:'Space Mono',monospace">🔮 천체·점성</button>
+        <button onclick="showUpcoming('econ',this)" style="flex:1;padding:8px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:13px;font-family:'Space Mono',monospace">📅 경제</button>
       </div>
       <div id="ovUpcomingAstro"></div>
       <div id="ovUpcomingEcon" style="display:none"></div>
@@ -528,13 +528,13 @@ function buildOverview() {
       <div style="padding:8px 0">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
           <div style="font-size:28px" id="ovZodiacIcon">♈</div>
-          <div><div style="font-family:'Space Mono',monospace;font-size:14px;color:var(--purple2)" id="ovZodiac">양자리</div><div style="font-size:12px;color:var(--text2)" id="ovZodiacDate">계산 중...</div></div>
-          <div style="margin-left:auto;text-align:right"><div style="font-size:12px;color:var(--text2)">태양궁 시즌</div><div style="font-size:11px;color:var(--gold)">새로운 시작의 에너지</div></div>
+          <div><div style="font-family:'Space Mono',monospace;font-size:16px;color:var(--purple2)" id="ovZodiac">양자리</div><div style="font-size:13px;color:var(--text2)" id="ovZodiacDate">계산 중...</div></div>
+          <div style="margin-left:auto;text-align:right"><div style="font-size:13px;color:var(--text2)">태양궁 시즌</div><div style="font-size:12px;color:var(--gold)">새로운 시작의 에너지</div></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
           ${['BTC 24h|ovBtc24h','S&P 500|ovSpxBrief','NASDAQ|ovNdxBrief'].map(s => {
             const [l,id] = s.split('|');
-            return `<div style="text-align:center;padding:8px;background:rgba(255,255,255,.02);border-radius:6px"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">${l}</div><div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700" id="${id}">--</div></div>`;
+            return `<div style="text-align:center;padding:10px;background:rgba(255,255,255,.02)"><div style="font-size:12px;color:var(--text2);margin-bottom:4px">${l}</div><div style="font-family:'Space Mono',monospace;font-size:17px;font-weight:700" id="${id}">--</div></div>`;
           }).join('')}
         </div>
         <div style="font-size:14px;color:var(--text2);line-height:2.1;padding:10px;background:rgba(124,58,237,.05);border:1px solid rgba(124,58,237,.15);border-radius:6px" id="ovCosmicBrief">
@@ -548,7 +548,7 @@ function buildOverview() {
     ${CT(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M3 11l18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>`,'주요 발언 · 월가 인사이드')}
     <div id="wallStreetBuzz">
       ${[['🏛️','트럼프 행정부 — 관세 정책 기조','"중국산 AI 칩에 대한 추가 관세 검토 중" — 상무부 장관'],['🏦','Fed 월러 이사','"인플레이션 데이터가 더 필요하다. 금리 인하는 하반기 이후 논의 가능"'],['📊','JP모건 다이먼 CEO','"미국 경제는 강하지만 지정학적 리스크를 과소평가하면 안 된다"'],['💰','골드만삭스 전략팀','S&P 500 연말 목표 6,500 → 6,800 상향. AI 인프라 투자 주도']].map(([e,t,d]) =>
-        `<div class="signal-row"><div style="font-size:14px;width:22px;text-align:center">${e}</div><div class="signal-text"><div style="color:var(--text);font-size:13px;margin-bottom:2px">${t}</div><div style="font-size:12px">${d}</div></div></div>`
+        `<div class="signal-row"><div style="font-size:16px;width:24px;text-align:center">${e}</div><div class="signal-text"><div style="color:var(--text);font-size:15px;margin-bottom:4px">${t}</div><div style="font-size:13px">${d}</div></div></div>`
       ).join('')}
     </div>
   </div>` + EP();
@@ -974,7 +974,7 @@ async function fetchOnchainData() {
           return b;
         })).then(items => {
           ws.innerHTML=items.map(b=>
-            `<div class="signal-row"><div style="font-size:14px;width:22px;text-align:center">${b.emoji}</div><div class="signal-text"><div style="color:var(--text);font-size:13px;margin-bottom:2px">${b.label}</div><div style="font-size:12px">${b.title}${b.source?' — <span style="color:var(--gold)">'+b.source+'</span>':''}</div></div></div>`
+            `<div class="signal-row"><div style="font-size:16px;width:24px;text-align:center">${b.emoji}</div><div class="signal-text"><div style="color:var(--text);font-size:15px;margin-bottom:4px">${b.label}</div><div style="font-size:13px">${b.title}${b.source?' — <span style="color:var(--gold)">'+b.source+'</span>':''}</div></div></div>`
           ).join('');
         });
       }
@@ -1093,11 +1093,11 @@ async function buildCalendar() {
   if($('cosmicMarketAnalysis'))$('cosmicMarketAnalysis').innerHTML='<span style="color:var(--gold)">3월 29일 양자리 신월</span>은 대담한 시작과 새로운 투자 사이클의 개막. 직후 <span style="color:var(--cyan)">FOMC(5월 6일)</span>가 예정돼 있어, 신월의 개척 에너지와 통화정책이 만나는 강력한 전환점입니다.<br><br><span style="color:var(--purple2)">황소자리 신월(4월 28일)</span>은 재물·부동산·원자재 섹터의 새로운 기회를 열며, 미국 GDP 예비치와 겹쳐 시장 재편의 기회창이 됩니다.';
   // Astro counters
   const ac=$('astroCounters');
-  if(ac) ac.innerHTML=[{d:'2026-04-25',i:'♄',l:'토성 양자리 진입',c:'var(--red)',desc:'새 규제 사이클'},{d:'2026-05-03',i:'☿',l:'수성 역행 시작',c:'var(--gold)',desc:'커뮤니케이션 주의'},{d:'2026-05-27',i:'☿',l:'수성 역행 종료',c:'var(--green)',desc:'정상화'},{d:'2026-06-30',i:'♃',l:'목성 사자자리 진입',c:'var(--gold)',desc:'엔터·럭셔리 확장'},{d:'2026-08-12',i:'🌘',l:'월식 (물병자리)',c:'var(--purple2)',desc:'테크 변곡'},{d:'2026-12-02',i:'♆',l:'해왕성 양자리 진입',c:'var(--purple2)',desc:'84년 주기 새 시대'}].map(e=>{const d=new Date(e.d),diff=Math.ceil((d-today)/864e5),past=diff<0;return `<div style="padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;${past?'opacity:.35':''}"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:18px">${e.i}</span><span style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${past?'var(--text2)':diff<=7?'var(--red)':diff<=30?'var(--gold)':'var(--cyan)'}">${past?'완료':diff===0?'오늘':'D-'+diff}</span></div><div style="font-size:12px;color:${e.c};font-weight:500;margin-bottom:4px">${e.l}</div><div style="font-size:12px;color:var(--text2);line-height:1.6">${e.desc}</div><div style="font-size:11px;color:var(--text2);margin-top:4px;font-family:'Space Mono',monospace">${e.d}</div></div>`;}).join('');
+  if(ac) ac.innerHTML=[{d:'2026-04-25',i:'♄',l:'토성 양자리 진입',c:'var(--red)',desc:'새 규제 사이클'},{d:'2026-05-03',i:'☿',l:'수성 역행 시작',c:'var(--gold)',desc:'커뮤니케이션 주의'},{d:'2026-05-27',i:'☿',l:'수성 역행 종료',c:'var(--green)',desc:'정상화'},{d:'2026-06-30',i:'♃',l:'목성 사자자리 진입',c:'var(--gold)',desc:'엔터·럭셔리 확장'},{d:'2026-08-12',i:'🌘',l:'월식 (물병자리)',c:'var(--purple2)',desc:'테크 변곡'},{d:'2026-12-02',i:'♆',l:'해왕성 양자리 진입',c:'var(--purple2)',desc:'84년 주기 새 시대'}].map(e=>{const d=new Date(e.d),diff=Math.ceil((d-today)/864e5),past=diff<0;return `<div style="padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);${past?'opacity:.35':''}"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:20px">${e.i}</span><span style="font-family:'Space Mono',monospace;font-size:17px;font-weight:700;color:${past?'var(--text2)':diff<=7?'var(--red)':diff<=30?'var(--gold)':'var(--cyan)'}">${past?'완료':diff===0?'오늘':'D-'+diff}</span></div><div style="font-size:14px;color:${e.c};font-weight:500;margin-bottom:5px">${e.l}</div><div style="font-size:13px;color:var(--text2);line-height:1.7">${e.desc}</div><div style="font-size:12px;color:var(--text2);margin-top:5px;font-family:'Space Mono',monospace">${e.d}</div></div>`;}).join('');
   // Overview upcoming events
   const allEvts=[{d:'2026-03-29',i:'🌑',l:'양자리 신월',t:'astro'},{d:'2026-04-03',i:'📊',l:'미국 고용지표',t:'econ'},{d:'2026-04-10',i:'📈',l:'미국 CPI',t:'econ'},{d:'2026-04-12',i:'🌕',l:'천칭자리 보름달',t:'astro'},{d:'2026-04-25',i:'♄',l:'토성 양자리 진입',t:'astro'},{d:'2026-05-03',i:'☿',l:'수성 역행 시작',t:'astro'},{d:'2026-05-06',i:'🏦',l:'FOMC 5월 회의',t:'econ'},{d:'2026-06-17',i:'🏦',l:'FOMC 6월 회의',t:'econ'},{d:'2026-06-30',i:'♃',l:'목성 사자자리 진입',t:'astro'}];
   const proc=allEvts.map(e=>({...e,diff:Math.ceil((new Date(e.d)-today)/864e5)})).filter(e=>e.diff>=0).sort((a,b)=>a.diff-b.diff);
-  const renderUp=list=>list.map(e=>{const tc=e.t==='astro'?'var(--purple2)':'var(--cyan)';return `<div class="signal-row"><div style="font-size:16px;width:24px;text-align:center">${e.i}</div><div class="signal-text"><span style="color:var(--text);font-size:13px;font-weight:500">${e.l}</span> <span style="color:${tc};font-size:11px;border:1px solid ${tc};border-radius:3px;padding:1px 5px;margin-left:6px">${e.t==='astro'?'천체':'경제'}</span></div>${e.diff===0?'<span style="color:var(--green);font-size:12px;font-weight:700">오늘</span>':`<span style="color:var(--cyan);font-size:12px;font-family:'Space Mono',monospace">D-${e.diff}</span>`}</div>`;}).join('');
+  const renderUp=list=>list.map(e=>{const tc=e.t==='astro'?'var(--purple2)':'var(--cyan)';return `<div class="signal-row"><div style="font-size:18px;width:26px;text-align:center">${e.i}</div><div class="signal-text"><span style="color:var(--text);font-size:15px;font-weight:500">${e.l}</span> <span style="color:${tc};font-size:11px;border:1px solid ${tc};padding:1px 6px;margin-left:6px">${e.t==='astro'?'천체':'경제'}</span></div>${e.diff===0?'<span style="color:var(--green);font-size:13px;font-weight:700">오늘</span>':`<span style="color:var(--cyan);font-size:13px;font-family:'Space Mono',monospace">D-${e.diff}</span>`}</div>`;}).join('');
   if($('ovUpcomingAstro'))$('ovUpcomingAstro').innerHTML=renderUp(proc.filter(e=>e.t==='astro').slice(0,6));
   if($('ovUpcomingEcon'))$('ovUpcomingEcon').innerHTML=renderUp(proc.filter(e=>e.t==='econ').slice(0,6));
   // Zodiac
