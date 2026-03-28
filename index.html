@@ -948,7 +948,10 @@ async function fetchOnchainData() {
     // CDS 자동 렌더링
     if(data.cds&&data.cds.countries){const cg=$('cdsGrid');if(cg)cg.innerHTML=data.cds.countries.map(c=>{const rc=c.risk==='CRITICAL'?'255,68,68':c.risk==='ELEVATED'?'201,168,76':'0,255,136';return `<div style="padding:10px;background:rgba(${rc},.06);border:1px solid rgba(${rc},.12);border-radius:6px;text-align:center"><div style="font-size:12px;color:var(--text2);margin-bottom:4px">${c.emoji} ${c.name}</div><div style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:rgba(${rc},1)">${c.spread_5y} bp</div><div style="font-size:10px;color:var(--text2);margin-top:2px">5Y CDS · ${c.risk}${c.fallback?' (추정)':''}</div></div>`;}).join('');if($('cdsSignal')&&data.cds.signal)$('cdsSignal').innerHTML=data.cds.signal+`<br><span style="font-size:11px;color:var(--text2)">평균 위험비율: ${data.cds.avg_ratio}x</span>`;const st=data.last_updated?new Date(data.last_updated):new Date();if($('cdsUpdated'))ts('cdsUpdated',st);}
     const serverTime = data.last_updated ? new Date(data.last_updated) : new Date();
-    ['stockUpdated','commodityUpdated','m7Updated','cvdUpdated','kimchiUpdated','liqUpdated','whaleUpdated'].forEach(id=>ts(id, serverTime));
+    // 가격 실제 변동 시각 — 무변동 구간(시장 휴장 등)엔 타임스탬프 고정
+    const marketTime = data.market_updated ? new Date(data.market_updated) : serverTime;
+    ['stockUpdated','m7Updated'].forEach(id=>ts(id, marketTime));
+    ['commodityUpdated','cvdUpdated','kimchiUpdated','liqUpdated','whaleUpdated','forexUpdated'].forEach(id=>ts(id, serverTime));
     // MVRV / 스테이블코인: 다음 갱신 시간 표시 (하루 1회)
     if(serverTime){
       const next = new Date(serverTime);

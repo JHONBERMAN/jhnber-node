@@ -59,6 +59,8 @@ _last_slow = 0
 _slow_cache: dict = {}
 _last_td   = 0
 _td_cache:  dict = {}
+_market_hash      = ""   # 주요 지수 가격 해시 (실제 변동 감지)
+_market_data_time = ""   # 가격이 실제 변동된 마지막 시각
 
 # ── Twelve Data 배치 심볼 ──────────────────────────────
 TD_SYMBOLS = [
@@ -2153,7 +2155,7 @@ def collect_twelve_data() -> dict:
 
 def run_once():
     """1회 데이터 수집 + data.json 저장"""
-    global _last_slow, _slow_cache, _last_td, _td_cache
+    global _last_slow, _slow_cache, _last_td, _td_cache, _market_hash, _market_data_time
 
     now = time.time()
     do_slow = (now - _last_slow) >= SLOW_INTERVAL or not _slow_cache
@@ -2256,6 +2258,16 @@ def run_once():
     market.pop("_m7_changes", None)
     market.pop("_m7_fallback", None)
 
+    # ── 실제 가격 변동 감지 → market_updated 갱신 ──
+    import hashlib as _hl
+    _chk = {k: market.get(k) for k in
+            ["spx", "ndx", "dji", "vix", "dxy", "n225", "hsi", "btc_usd"]}
+    _new_hash = _hl.md5(json.dumps(_chk, sort_keys=True).encode()).hexdigest()[:12]
+    if _new_hash != _market_hash:
+        _market_hash = _new_hash
+        _market_data_time = datetime.now(timezone.utc).isoformat()
+        print("  🔄 시장 데이터 변동 → market_updated 갱신")
+
     # null 방지 기본값
     usdt = sc.get("usdt", 0)
     usdc = sc.get("usdc", 0)
@@ -2328,6 +2340,7 @@ def run_once():
         "cds": sc.get("cds") or None,
 
         "last_updated": datetime.now(timezone.utc).isoformat(),
+        "market_updated": _market_data_time or datetime.now(timezone.utc).isoformat(),
     }
 
     # 저장
