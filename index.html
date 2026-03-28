@@ -37,7 +37,7 @@
   --line2:rgba(255,255,255,.06);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:'Space Mono','Noto Sans KR',monospace;font-size:13px;min-height:100vh;overflow-x:hidden;position:relative}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono','Noto Sans KR',monospace;font-size:14px;min-height:100vh;overflow-x:hidden;position:relative;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
 
 /* ── Scanline + Vignette ── */
 body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.07) 2px,rgba(0,0,0,.07) 4px);pointer-events:none;z-index:9999}
@@ -49,20 +49,20 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .container{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:0 24px 48px}
 
 /* ── Top Bar (brand + time + live) ── */
-.top-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);margin-bottom:0;position:sticky;top:0;background:rgba(0,0,0,.95);backdrop-filter:blur(8px);z-index:100}
-.top-brand{font-size:10px;letter-spacing:4px;color:var(--gold);text-transform:uppercase}
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border);margin-bottom:0;position:sticky;top:0;background:rgba(0,0,0,.95);backdrop-filter:blur(8px);z-index:100}
+.top-brand{font-size:11px;letter-spacing:4px;color:var(--gold);text-transform:uppercase}
 .top-brand span{color:var(--text2);margin:0 6px}
-.top-time{display:flex;gap:0;font-size:11px}
-.top-time-item{display:flex;align-items:center;gap:7px;padding:0 20px;border-right:1px solid var(--border)}
-.top-time-city{color:var(--text2);font-size:9px;letter-spacing:2px}
-.top-time-val{color:var(--gold2);font-size:12px;font-weight:700}
-.top-right{display:flex;align-items:center;gap:14px;font-size:10px}
+.top-time{display:flex;gap:0;font-size:12px}
+.top-time-item{display:flex;align-items:center;gap:8px;padding:0 22px;border-right:1px solid var(--border)}
+.top-time-city{color:var(--text2);font-size:10px;letter-spacing:2px}
+.top-time-val{color:var(--gold2);font-size:14px;font-weight:700}
+.top-right{display:flex;align-items:center;gap:14px;font-size:11px}
 
 /* ── Header ── */
 header{text-align:center;padding:44px 20px 32px;border-bottom:1px solid var(--border)}
-.header-ornament{font-size:9px;letter-spacing:6px;color:var(--text2);text-transform:uppercase;margin-bottom:18px}
-h1{font-family:'Space Mono',monospace;font-size:clamp(20px,3.5vw,42px);font-weight:700;color:var(--gold2);letter-spacing:12px;text-transform:uppercase;line-height:1}
-.subtitle{font-size:9px;letter-spacing:5px;color:var(--text2);margin-top:12px;text-transform:uppercase}
+.header-ornament{font-size:10px;letter-spacing:6px;color:var(--text2);text-transform:uppercase;margin-bottom:20px}
+h1{font-family:'Space Mono',monospace;font-size:clamp(22px,4vw,48px);font-weight:700;color:var(--gold2);letter-spacing:12px;text-transform:uppercase;line-height:1}
+.subtitle{font-size:10px;letter-spacing:5px;color:var(--text2);margin-top:14px;text-transform:uppercase}
 .divider{display:none}
 
 /* ── Time Bar (below header) ── */
@@ -71,7 +71,7 @@ h1{font-family:'Space Mono',monospace;font-size:clamp(20px,3.5vw,42px);font-weig
 /* ── Nav Tabs ── */
 .nav-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;margin-bottom:0}
 .nav-tabs::-webkit-scrollbar{display:none}
-.tab-btn{flex:none;padding:12px 18px;background:transparent;border:none;border-bottom:1px solid transparent;margin-bottom:-1px;color:var(--text2);font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:color .15s;user-select:none}
+.tab-btn{flex:none;padding:13px 20px;background:transparent;border:none;border-bottom:1px solid transparent;margin-bottom:-1px;color:var(--text2);font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:color .15s;user-select:none}
 .tab-btn svg{opacity:.5;flex-shrink:0;transition:opacity .15s}
 .tab-btn:hover{color:var(--text)}
 .tab-btn:hover svg{opacity:.8}
@@ -86,9 +86,9 @@ h1{font-family:'Space Mono',monospace;font-size:clamp(20px,3.5vw,42px);font-weig
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
 /* ── Cards ── */
-.card{background:var(--bg2);border:1px solid var(--border);padding:20px 22px;position:relative;font-size:13px;line-height:1.8}
+.card{background:var(--bg2);border:1px solid var(--border);padding:22px 24px;position:relative;font-size:14px;line-height:1.85}
 .card:hover{border-color:rgba(200,169,110,.28)}
-.card-title{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--text2);text-transform:uppercase;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:8px}
+.card-title{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--text2);text-transform:uppercase;margin-bottom:18px;padding-bottom:13px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:8px}
 .card-title .icon{display:inline-flex;align-items:center;vertical-align:middle;opacity:.6}
 
 /* ── Grid Layouts ── */
@@ -98,36 +98,36 @@ h1{font-family:'Space Mono',monospace;font-size:clamp(20px,3.5vw,42px);font-weig
 .section-gap{margin-bottom:12px}
 
 /* ── Market Ticker ── */
-.ticker-item{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line2)}
+.ticker-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line2)}
 .ticker-item:last-child{border-bottom:none}
-.ticker-name{font-family:'Space Mono',monospace;font-size:12px;color:var(--text);font-weight:700;letter-spacing:.5px}
-.ticker-sub{font-size:10px;color:var(--text2);margin-top:2px;font-family:'Noto Sans KR',sans-serif;font-weight:300}
-.ticker-price{font-family:'Space Mono',monospace;font-size:15px;font-weight:700;text-align:right}
-.ticker-change{font-size:10px;font-family:'Space Mono',monospace;margin-top:2px;text-align:right}
+.ticker-name{font-family:'Space Mono',monospace;font-size:13px;color:var(--text);font-weight:700;letter-spacing:.5px}
+.ticker-sub{font-size:11px;color:var(--text2);margin-top:3px;font-family:'Noto Sans KR',sans-serif;font-weight:300}
+.ticker-price{font-family:'Space Mono',monospace;font-size:17px;font-weight:700;text-align:right}
+.ticker-change{font-size:11px;font-family:'Space Mono',monospace;margin-top:3px;text-align:right}
 .up{color:var(--green)} .down{color:var(--red)}
 
 /* ── Stat Big ── */
-.stat-big{text-align:center;padding:16px}
-.stat-num{font-family:'Space Mono',monospace;font-size:40px;font-weight:700;line-height:1;margin-bottom:6px}
-.stat-label{font-size:9px;letter-spacing:3px;color:var(--text2);text-transform:uppercase;font-family:'Space Mono',monospace}
+.stat-big{text-align:center;padding:18px}
+.stat-num{font-family:'Space Mono',monospace;font-size:44px;font-weight:700;line-height:1;margin-bottom:8px}
+.stat-label{font-size:10px;letter-spacing:3px;color:var(--text2);text-transform:uppercase;font-family:'Space Mono',monospace}
 
 /* ── Signals ── */
-.signal-row{display:flex;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--line2)}
+.signal-row{display:flex;align-items:baseline;gap:10px;padding:10px 0;border-bottom:1px solid var(--line2)}
 .signal-row:last-child{border-bottom:none}
-.signal-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.signal-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
 .signal-dot.bull{background:var(--green);box-shadow:0 0 5px var(--green)}
 .signal-dot.bear{background:var(--red);box-shadow:0 0 5px var(--red)}
 .signal-dot.neutral{background:var(--gold);box-shadow:0 0 5px var(--gold)}
-.signal-text{font-size:12px;color:var(--text2);flex:1;line-height:1.7}
-.signal-score{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;flex-shrink:0}
+.signal-text{font-size:13px;color:var(--text2);flex:1;line-height:1.75}
+.signal-score{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;flex-shrink:0}
 
 /* ── Mini Ticker ── */
 .mini-ticker-bar{display:flex;gap:0;border:1px solid var(--border);overflow-x:auto;scrollbar-width:none;margin-bottom:12px;background:var(--bg2)}
 .mini-ticker-bar::-webkit-scrollbar{display:none}
-.mini-ticker-item{flex:1;min-width:80px;text-align:center;padding:8px 10px;border-right:1px solid var(--line2);white-space:nowrap}
+.mini-ticker-item{flex:1;min-width:85px;text-align:center;padding:10px 12px;border-right:1px solid var(--line2);white-space:nowrap}
 .mini-ticker-item:last-child{border-right:none}
-.mini-label{font-size:8px;letter-spacing:1.5px;color:var(--text2);display:block;margin-bottom:4px;font-family:'Space Mono',monospace}
-.mini-val{font-family:'Space Mono',monospace;font-size:12px;color:var(--text);font-weight:700}
+.mini-label{font-size:9px;letter-spacing:1.5px;color:var(--text2);display:block;margin-bottom:5px;font-family:'Space Mono',monospace}
+.mini-val{font-family:'Space Mono',monospace;font-size:13px;color:var(--text);font-weight:700}
 
 /* ── Mood Meter ── */
 .mood-meter{width:100%;max-width:300px;height:22px;background:rgba(255,255,255,.04);position:relative;overflow:hidden;border:1px solid var(--border)}
@@ -202,16 +202,16 @@ h1{font-family:'Space Mono',monospace;font-size:clamp(20px,3.5vw,42px);font-weig
 .skeleton-wide{width:80%}.skeleton-short{width:40%}.skeleton-full{width:100%}
 .stat-num.skeleton-val{color:transparent!important;background:linear-gradient(90deg,rgba(200,169,110,.06) 25%,rgba(200,169,110,.12) 50%,rgba(200,169,110,.06) 75%);background-size:200px 100%;animation:skeletonShimmer 1.2s infinite linear}
 /* ── News ── */
-.news-item{padding:12px 0;border-bottom:1px solid var(--line2);cursor:default}
+.news-item{padding:14px 0;border-bottom:1px solid var(--line2);cursor:default}
 .news-item:last-child{border-bottom:none}
 .news-item:hover{background:rgba(200,169,110,.02);padding-left:6px;padding-right:6px}
-.news-title{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:4px}
+.news-title{font-size:14px;color:var(--text);line-height:1.65;margin-bottom:5px}
 .news-title a{color:var(--text);text-decoration:none}
 .news-title a:hover{color:var(--gold)}
-.news-meta{display:flex;gap:8px;align-items:center;font-size:11px;color:var(--text2)}
-.news-source{font-size:11px;color:var(--gold);font-family:'Space Mono',monospace;letter-spacing:.5px}
-.news-time{font-family:'Space Mono',monospace;font-size:10px;color:var(--text2)}
-.news-tag{font-size:9px;padding:2px 7px;border:1px solid var(--border);color:var(--text2);letter-spacing:.5px;font-family:'Space Mono',monospace}
+.news-meta{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text2)}
+.news-source{font-size:12px;color:var(--gold);font-family:'Space Mono',monospace;letter-spacing:.5px}
+.news-time{font-family:'Space Mono',monospace;font-size:11px;color:var(--text2)}
+.news-tag{font-size:10px;padding:2px 7px;border:1px solid var(--border);color:var(--text2);letter-spacing:.5px;font-family:'Space Mono',monospace}
 
 .disclaimer{text-align:center;font-size:9px;color:var(--text2);padding:20px;letter-spacing:1px;line-height:2;font-family:'Space Mono',monospace;opacity:.5}
 
@@ -222,8 +222,8 @@ h1{font-family:'Space Mono',monospace;font-size:clamp(20px,3.5vw,42px);font-weig
 .visitor-item:last-child{border-right:none}
 .visitor-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
 .visitor-dot.live{background:var(--green);animation:blink .8s step-end infinite}
-.visitor-label{color:var(--text2);letter-spacing:3px;font-size:8px;text-transform:uppercase}
-.visitor-num{color:var(--gold);font-weight:700;font-size:16px}
+.visitor-label{color:var(--text2);letter-spacing:3px;font-size:9px;text-transform:uppercase}
+.visitor-num{color:var(--gold);font-weight:700;font-size:18px}
 .visitor-sep{display:none}
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-track{background:var(--bg)}
