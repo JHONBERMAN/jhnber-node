@@ -2261,7 +2261,8 @@ def run_once():
     # ── 실제 가격 변동 감지 → market_updated 갱신 ──
     import hashlib as _hl
     _chk = {k: market.get(k) for k in
-            ["spx", "ndx", "dji", "vix", "dxy", "n225", "hsi", "btc_usd"]}
+            ["spx", "ndx", "dji", "vix", "dxy", "n225", "hsi", "btc_usd",
+             "forex_krw", "forex_jpy", "forex_eur"]}
     _new_hash = _hl.md5(json.dumps(_chk, sort_keys=True).encode()).hexdigest()[:12]
     if _new_hash != _market_hash:
         _market_hash = _new_hash

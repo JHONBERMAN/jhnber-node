@@ -950,8 +950,8 @@ async function fetchOnchainData() {
     const serverTime = data.last_updated ? new Date(data.last_updated) : new Date();
     // 가격 실제 변동 시각 — 무변동 구간(시장 휴장 등)엔 타임스탬프 고정
     const marketTime = data.market_updated ? new Date(data.market_updated) : serverTime;
-    ['stockUpdated','m7Updated'].forEach(id=>ts(id, marketTime));
-    ['commodityUpdated','cvdUpdated','kimchiUpdated','liqUpdated','whaleUpdated','forexUpdated'].forEach(id=>ts(id, serverTime));
+    ['stockUpdated','m7Updated','forexUpdated'].forEach(id=>ts(id, marketTime));
+    ['commodityUpdated','cvdUpdated','kimchiUpdated','liqUpdated','whaleUpdated'].forEach(id=>ts(id, serverTime));
     // MVRV / 스테이블코인: 다음 갱신 시간 표시 (하루 1회)
     if(serverTime){
       const next = new Date(serverTime);
