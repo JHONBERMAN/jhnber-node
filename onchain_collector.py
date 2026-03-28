@@ -274,6 +274,7 @@ def collect_hl_prices():
 YAHOO_SYMBOLS = {
     "spx": "^GSPC", "ndx": "^NDX", "dji": "^DJI", "kospi": "^KS11",
     "vix": "^VIX", "dxy": "DX-Y.NYB",
+    "n225": "^N225", "hsi": "^HSI",          # 니케이·항셍 (TD 폴백)
     "gold": "GC=F", "silver": "SI=F", "oil": "CL=F",
     "brent": "BZ=F", "natgas": "NG=F", "copper": "HG=F",
     "btc_usd": "BTC-USD",
@@ -2260,8 +2261,9 @@ def run_once():
 
     # ── 실제 가격 변동 감지 → market_updated 갱신 ──
     import hashlib as _hl
+    # BTC는 24/7 자산이므로 제외 — 전통 시장(지수·환율)만 변동 감지
     _chk = {k: market.get(k) for k in
-            ["spx", "ndx", "dji", "vix", "dxy", "n225", "hsi", "btc_usd",
+            ["spx", "ndx", "dji", "vix", "dxy", "n225", "hsi",
              "forex_krw", "forex_jpy", "forex_eur"]}
     _new_hash = _hl.md5(json.dumps(_chk, sort_keys=True).encode()).hexdigest()[:12]
     if _new_hash != _market_hash:
