@@ -39,7 +39,7 @@
   }
 
   /* ═══════════════════════════════════════════════
-     1. X-SIGNAL 카드 업데이트 (ovSignals)
+     1. X-SIGNAL 카드 업데이트 (ovSignals + CRD 게이지)
      구조: .signal-row > .signal-dot.bull/bear/neutral + .signal-text + .signal-score.up/down
   ═══════════════════════════════════════════════ */
   function updateXSignal(data){
@@ -50,6 +50,25 @@
     const alerts  = data.market_alerts||[];
     const g       = data.crd_gauge||{};
     const score   = g.score||0;
+    const level   = g.level||'Low';
+
+    /* CRD 게이지 */
+    let gaugeColor = 'var(--green)';
+    let levelColor = 'var(--green)';
+    if(score>=80){ gaugeColor='var(--red)';   levelColor='var(--red)'; }
+    else if(score>=50){ gaugeColor='var(--gold)'; levelColor='var(--gold)'; }
+    else if(score>=20){ gaugeColor='#f59e0b';  levelColor='#f59e0b'; }
+
+    const scoreEl = document.getElementById('ovCrdScore');
+    if(scoreEl){ scoreEl.textContent = score+' / 100'; scoreEl.style.color = levelColor; }
+    const gaugeEl = document.getElementById('ovCrdGauge');
+    if(gaugeEl){ gaugeEl.style.width = score+'%'; gaugeEl.style.background = gaugeColor; }
+    const levelEl = document.getElementById('ovCrdLevel');
+    if(levelEl){
+      const icon = score>=80?'⚡':score>=50?'⚠️':score>=20?'📊':'✅';
+      levelEl.style.color = levelColor;
+      levelEl.textContent = `${icon} ${level} — ${g.description||''}`;
+    }
 
     const sigRows = aspects.map(a=>{
       const orb = a.orb_exactness||0;
