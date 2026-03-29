@@ -639,7 +639,7 @@ function buildMarket() {
 }
 
 function buildEcon() { return P('econ') + `<div class="card section-gap">${CT(ICONS.cal,'경제 캘린더 — 인베스팅닷컴 기준')}<div id="econCalendar" style="padding:4px 0"></div></div>` + EP(); }
-function buildNews() { return P('news') + `<div class="card section-gap">${CT(ICONS.news,'실시간 경제 뉴스',TS('newsUpdated'))}<div class="topic-chips" style="margin-bottom:16px"><div class="chip active" onclick="filterNews(this,'all')">전체</div><div class="chip" onclick="filterNews(this,'xfeed')">속보</div><div class="chip" style="border-color:rgba(255,68,68,.4);color:var(--red)" onclick="filterNews(this,'trump')">🏛️ 트럼프</div><div class="chip" onclick="filterNews(this,'crypto')">크립토</div><div class="chip" onclick="filterNews(this,'macro')">매크로</div><div class="chip" onclick="filterNews(this,'market')">마켓</div></div><div id="newsList" style="display:flex;flex-direction:column;gap:0"><div style="padding:30px;text-align:center;color:var(--text2);font-size:12px">뉴스를 불러오는 중...</div></div></div>` + EP(); }
+function buildNews() { return P('news') + `<div class="card section-gap">${CT(ICONS.news,'실시간 경제 뉴스',TS('newsUpdated'))}<div class="topic-chips" style="margin-bottom:16px"><div class="chip active" onclick="filterNews(this,'all')">전체</div><div class="chip" style="border-color:rgba(255,68,68,.4);color:var(--red)" onclick="filterNews(this,'trump')">🏛️ 트럼프</div><div class="chip" onclick="filterNews(this,'crypto')">크립토</div><div class="chip" onclick="filterNews(this,'macro')">매크로·마켓</div></div><div id="newsList" style="display:flex;flex-direction:column;gap:0"><div style="padding:30px;text-align:center;color:var(--text2);font-size:12px">뉴스를 불러오는 중...</div></div></div>` + EP(); }
 
 function buildFear() {
   const arcSvg = (id,gradId) => `<svg viewBox="0 0 200 120" width="200" height="120"><defs><linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" style="stop-color:#ff4444"/><stop offset="25%" style="stop-color:#ff8844"/><stop offset="50%" style="stop-color:#ffdd32"/><stop offset="75%" style="stop-color:#88dd44"/><stop offset="100%" style="stop-color:#00ff88"/></linearGradient></defs><path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="16" stroke-linecap="round"/><path id="${id}Arc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#${gradId})" stroke-width="16" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="200"/><text id="${id}Num" x="100" y="88" text-anchor="middle" font-size="38" font-weight="700" fill="white" font-family="monospace">--</text><text id="${id}Label" x="100" y="108" text-anchor="middle" font-size="12" fill="#ffdd32">로딩중...</text><text x="16" y="118" font-size="8" fill="#ff4444">극도공포</text><text x="144" y="118" font-size="8" fill="#00ff88">극도탐욕</text></svg>`;
@@ -1142,7 +1142,9 @@ window.filterNews = function(el, cat) {
   items.forEach(item => {
     if (cat === 'all') { item.style.display = ''; return; }
     const tag = item.dataset.cat || 'all';
-    item.style.display = (tag === cat) ? '' : 'none';
+    // 매크로·마켓 탭은 macro + market 둘 다 표시
+    const match = cat === 'macro' ? (tag === 'macro' || tag === 'market') : tag === cat;
+    item.style.display = match ? '' : 'none';
   });
 };
 
@@ -1161,12 +1163,12 @@ async function translateToKo(text) {
 const NEWS_FEEDS = [
   // 크립토
   {url:'https://www.coindesk.com/arc/outboundfeeds/rss/', cat:'crypto', label:'CoinDesk', direct:true},
-  {url:'https://news.google.com/rss/search?q=site:coinness.com&hl=ko&gl=KR&ceid=KR:ko', cat:'crypto', label:'코인니스'},
-  // 매크로 (Bloomberg, Reuters)
+  {url:'https://cointelegraph.com/rss', cat:'crypto', label:'CoinTelegraph', direct:true},
+  {url:'https://decrypt.co/feed', cat:'crypto', label:'Decrypt', direct:true},
+  // 매크로·마켓
   {url:'https://news.google.com/rss/search?q=site:bloomberg.com+markets+economy+finance&hl=en&gl=US&ceid=US:en', cat:'macro', label:'Bloomberg'},
   {url:'https://news.google.com/rss/search?q=site:reuters.com+markets+finance+economy&hl=en&gl=US&ceid=US:en', cat:'macro', label:'Reuters'},
-  // 마켓 (WSJ)
-  {url:'https://feeds.a.dj.com/rss/RSSMarketsMain.xml', cat:'market', label:'WSJ', direct:true},
+  {url:'https://feeds.a.dj.com/rss/RSSMarketsMain.xml', cat:'macro', label:'WSJ', direct:true},
 ];
 
 async function fetchNews() {

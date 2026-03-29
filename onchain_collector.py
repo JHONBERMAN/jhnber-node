@@ -1870,61 +1870,48 @@ def _parse_rss_items(raw, handle, display_name, emoji, max_items=5):
 # ── SLOW: 트럼프 트루스소셜 (Google News RSS) ────────
 
 def collect_trump_truth():
-    """트럼프 트루스소셜 포스트 수집 — Google News 키워드 스캔
-    
-    트루스소셜은 공식 API/RSS 없음.
-    뉴스 매체가 트럼프 포스트를 실시간 보도하므로
-    Google News RSS로 1~5분 딜레이 수집.
+    """트럼프 Truth Social 공식 포스트 직접 수집
+    Truth Social은 Mastodon 기반 → /@username.rss 공식 RSS 지원
     """
-    print("  🇺🇸 트럼프 트루스소셜…")
+    print("  🇺🇸 트럼프 Truth Social RSS…")
 
-    queries = [
-        "Trump Truth Social post",
-        "Trump posted Truth Social",
-        "Trump says Truth Social",
-        "Trump Truth Social statement",
-    ]
+    RSS_URL = "https://truthsocial.com/@realDonaldTrump.rss"
+    now_ts  = int(time.time())
+    posts   = []
 
-    posts = []
-    seen_titles = set()
-    now_ts = int(time.time())
-
-    for query in queries:
-        q = query.replace(" ", "+")
-        url = f"https://news.google.com/rss/search?q={q}+when:1d&hl=en&gl=US&ceid=US:en"
-        raw = fetch_raw(url, timeout=8)
+    try:
+        raw = fetch_raw(RSS_URL, timeout=12)
         if not raw or "<item>" not in raw:
-            continue
+            print("    ⚠ Truth Social RSS 응답 없음")
+            return []
 
-        items = raw.split("<item>")[1:6]  # 쿼리당 최대 5개
-        for item in items:
-            title = ""
-            t_match = re.search(r"<title>(.*?)</title>", item, re.DOTALL)
-            if t_match:
-                title = t_match.group(1).strip()
-                title = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", title)
-                title = re.sub(r"<[^>]+>", "", title).strip()[:200]
+        items = raw.split("<item>")[1:]
+        for item in items[:15]:  # 최대 15개 파싱
+            # 본문 — <content:encoded> 우선, 없으면 <description>
+            text = ""
+            for tag in (r"<content:encoded>(.*?)</content:encoded>",
+                        r"<description>(.*?)</description>"):
+                m = re.search(tag, item, re.DOTALL)
+                if m:
+                    text = m.group(1).strip()
+                    # CDATA 제거
+                    text = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", text, flags=re.DOTALL)
+                    # HTML 태그 제거
+                    text = re.sub(r"<[^>]+>", "", text).strip()
+                    # 공백 정리
+                    text = re.sub(r"\s+", " ", text).strip()
+                    if text:
+                        break
 
-            if not title or len(title) < 15:
+            if not text or len(text) < 10:
                 continue
-
-            # 중복 제거 (유사 헤드라인 필터)
-            title_key = title[:60].lower()
-            if title_key in seen_titles:
-                continue
-            seen_titles.add(title_key)
 
             # 링크
             link = ""
-            l_match = re.search(r"<link>(.*?)</link>", item)
+            l_match = re.search(r"<link>(.*?)</link>", item) or \
+                      re.search(r"<guid[^>]*>(.*?)</guid>", item)
             if l_match:
                 link = l_match.group(1).strip()
-
-            # 소스
-            source = ""
-            s_match = re.search(r"<source[^>]*>(.*?)</source>", item)
-            if s_match:
-                source = s_match.group(1).strip()
 
             # 타임스탬프
             ts = now_ts
@@ -1936,27 +1923,28 @@ def collect_trump_truth():
                 except Exception:
                     pass
 
-            # 12시간 이상 지난 건 제외
-            if now_ts - ts > 43200:
+            # 48시간 이상 지난 건 제외
+            if now_ts - ts > 172800:
                 continue
 
             posts.append({
                 "handle": "@realDonaldTrump",
-                "name": "Trump (Truth Social)",
-                "emoji": "🏛️",
-                "text": title,
-                "link": link,
-                "source": source,
+                "name":   "Donald J. Trump",
+                "emoji":  "🏛️",
+                "text":   text[:280],
+                "link":   link,
+                "source": "Truth Social",
                 "timestamp": ts,
-                "cat": "trump",
+                "cat":    "trump",
             })
 
-        time.sleep(0.2)
+    except Exception as e:
+        print(f"    ⚠ Truth Social RSS 오류: {e}")
+        return []
 
-    # 시간순 정렬
     posts.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
-    result = posts[:10]  # 최대 10개
-    print(f"    ✓ 트럼프: {len(result)}건 수집")
+    result = posts[:10]
+    print(f"    ✓ 트럼프 Truth Social: {len(result)}건 수집")
     return result
 
 
