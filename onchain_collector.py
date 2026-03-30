@@ -278,10 +278,6 @@ YAHOO_SYMBOLS = {
     "n225": "^N225", "hsi": "^HSI",          # 니케이·항셍 (TD 폴백)
     "gold": "GC=F", "silver": "SI=F", "oil": "CL=F",
     "brent": "BZ=F", "natgas": "NG=F", "copper": "HG=F",
-    # 환율 (Yahoo Finance)
-    "forex_krw": "USDKRW=X", "forex_jpy": "USDJPY=X",
-    "forex_eur": "EURUSD=X", "forex_cny": "USDCNY=X",
-    "forex_aud": "AUDUSD=X", "forex_gbp": "GBPUSD=X",
     "btc_usd": "BTC-USD",
 }
 
@@ -2072,6 +2068,59 @@ def collect_whales(btc_price=87000, eth_price=2100):
     return result, 0, 0
 
 
+# ── Frankfurter 환율 ──────────────────────────────────
+
+def collect_forex_frankfurter() -> dict:
+    """Frankfurter API — 환율 6개 + 등락률 (5분 주기, 무료·키없음)"""
+    from datetime import date, timedelta
+
+    def get_rates(dt):
+        url = f"https://api.frankfurter.app/{dt}?from=USD&to=KRW,JPY,EUR,CNY,AUD,GBP"
+        raw = fetch_raw(url, timeout=10)
+        if not raw:
+            return None
+        try:
+            return json.loads(raw).get("rates", {})
+        except Exception:
+            return None
+
+    today_rates = get_rates("latest")
+    if not today_rates:
+        print("    ⚠ Frankfurter 응답 없음")
+        return {}
+
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    yest_rates = get_rates(yesterday) or today_rates
+
+    def _chg(tv, yv):
+        if tv and yv:
+            return round((tv - yv) / yv * 100, 2)
+        return 0.0
+
+    # KRW/JPY/CNY: USD 기준 직접값, EUR/AUD/GBP: 역수 (USD per 1 unit)
+    pairs = [
+        ("forex_krw", lambda r: round(r["KRW"], 2)  if r.get("KRW") else None),
+        ("forex_jpy", lambda r: round(r["JPY"], 2)  if r.get("JPY") else None),
+        ("forex_eur", lambda r: round(1/r["EUR"], 4) if r.get("EUR") else None),
+        ("forex_cny", lambda r: round(r["CNY"], 4)  if r.get("CNY") else None),
+        ("forex_aud", lambda r: round(1/r["AUD"], 4) if r.get("AUD") else None),
+        ("forex_gbp", lambda r: round(1/r["GBP"], 4) if r.get("GBP") else None),
+    ]
+
+    out = {}
+    ok = 0
+    for key, fn in pairs:
+        tv = fn(today_rates)
+        yv = fn(yest_rates)
+        if tv:
+            out[key] = tv
+            out[key + "_chg"] = _chg(tv, yv)
+            ok += 1
+
+    print(f"    ✅ Frankfurter 환율 {ok}개")
+    return out
+
+
 # ── Twelve Data Batch ─────────────────────────────────
 
 def collect_twelve_data() -> dict:
@@ -2185,6 +2234,7 @@ def run_once():
         print("\n  ── SLOW 수집 시작 ──")
 
         yahoo = collect_yahoo_changes(hl)
+        forex = collect_forex_frankfurter()
         fred = collect_fred_and_dominance()
         okx = collect_okx(btc)
         kimchi = collect_kimchi(btc)
@@ -2206,7 +2256,7 @@ def run_once():
         cds = collect_cds()
 
         _slow_cache = {
-            "yahoo": yahoo, "fred": fred, "okx": okx,
+            "yahoo": yahoo, "forex": forex, "fred": fred, "okx": okx,
             "kimchi": kimchi, "liquidation": liquidation, "war": war,
             "celestial": celestial,
             "cnn": cnn, "sentiment": sentiment, "mvrv": mvrv, "altseason": altseason,
@@ -2225,12 +2275,13 @@ def run_once():
     # ── 결과 조합 ──
     sc = _slow_cache
     yahoo = sc.get("yahoo", {})
+    forex = sc.get("forex", {})
     fred = sc.get("fred", {})
     okx = sc.get("okx", {})
 
-    # 마켓 데이터 병합 (HL + Yahoo + FRED + TD)
-    # 우선순위: TD 데이터 > Yahoo > HL (지수/환율은 TD가 가장 정확)
-    market = {**hl, **yahoo, **fred}
+    # 마켓 데이터 병합 (HL + Yahoo + Frankfurter 환율 + FRED + TD)
+    # 우선순위: TD 데이터 > Frankfurter > Yahoo > HL
+    market = {**hl, **yahoo, **forex, **fred}
 
     # TD 데이터 적용 (지수, 환율, M7 전체 덮어쓰기)
     if td:
