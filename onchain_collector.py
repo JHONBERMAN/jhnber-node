@@ -31,6 +31,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
+from urllib.parse import quote
 
 
 # ── .env 로더 (외부 패키지 불필요) ──────────────────
@@ -2079,7 +2080,7 @@ def collect_twelve_data() -> dict:
         print("    ⚠ TWELVE_DATA_API_KEY 없음 — TD 수집 건너뜀")
         return {}
 
-    symbols_str = ",".join(TD_SYMBOLS)
+    symbols_str = quote(",".join(TD_SYMBOLS), safe=",")
     url = (
         "https://api.twelvedata.com/quote"
         f"?symbol={symbols_str}"
@@ -2095,6 +2096,11 @@ def collect_twelve_data() -> dict:
         data = json.loads(raw)
     except (json.JSONDecodeError, ValueError) as e:
         print(f"    ⚠ TD JSON 파싱 실패: {e}")
+        return {}
+
+    # 최상위 에러 응답 처리
+    if isinstance(data, dict) and data.get("status") == "error":
+        print(f"    ⚠ TD API 에러: {data.get('message', 'unknown')} (code={data.get('code')})")
         return {}
 
     # 단일 심볼 요청이면 dict 직접 반환 → 리스트 형태로 통일
@@ -2125,6 +2131,7 @@ def collect_twelve_data() -> dict:
             ok_idx += 1
         elif sym in TD_FOREX_MAP:
             out[TD_FOREX_MAP[sym]] = round(close, 4)
+            out[TD_FOREX_MAP[sym] + "_chg"] = chg
             ok_fx += 1
         elif sym in TD_M7_ORDER:
             m7.append({"sym": sym, "price": round(close, 2), "chg": chg})

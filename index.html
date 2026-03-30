@@ -874,14 +874,14 @@ async function fetchOnchainData() {
       const fChg=v=>v!=null?` <span style="font-size:11px;color:var(${v>=0?'--green':'--red'})">${v>=0?'+':''}${v.toFixed(2)}%</span>`:'';
       const fl=$('forexList');
       if(fl){fl.innerHTML=[
-        ['USD/KRW','달러/원',   m.forex_krw?'₩'+Math.round(m.forex_krw).toLocaleString():'--'],
-        ['USD/JPY','달러/엔',   m.forex_jpy?'¥'+m.forex_jpy.toFixed(2):'--'],
-        ['EUR/USD','유로/달러', m.forex_eur?'$'+m.forex_eur.toFixed(4):'--'],
-        ['USD/CNY','달러/위안', m.forex_cny?'¥'+m.forex_cny.toFixed(4):'--'],
-        ['AUD/USD','호주달러',  m.forex_aud?'$'+m.forex_aud.toFixed(4):'--'],
-        ['GBP/USD','파운드/달러',m.forex_gbp?'$'+m.forex_gbp.toFixed(4):'--'],
-        ['DXY',    '달러인덱스',m.dxy?m.dxy.toFixed(2)+fChg(m.dxy_chg):'--'],
-      ].map(([n,s,v])=>`<div class="ticker-item"><div><div class="ticker-name">${n}</div><div class="ticker-sub">${s}</div></div><div><div class="ticker-price" style="color:var(--text)">${v}</div></div></div>`).join('');
+        ['USD/KRW','달러/원',   m.forex_krw?'₩'+Math.round(m.forex_krw).toLocaleString()+fChg(m.forex_krw_chg):'--', m.forex_krw_chg],
+        ['USD/JPY','달러/엔',   m.forex_jpy?'¥'+m.forex_jpy.toFixed(2)+fChg(m.forex_jpy_chg):'--', m.forex_jpy_chg],
+        ['EUR/USD','유로/달러', m.forex_eur?'$'+m.forex_eur.toFixed(4)+fChg(m.forex_eur_chg):'--', m.forex_eur_chg],
+        ['USD/CNY','달러/위안', m.forex_cny?'¥'+m.forex_cny.toFixed(4)+fChg(m.forex_cny_chg):'--', m.forex_cny_chg],
+        ['AUD/USD','호주달러',  m.forex_aud?'$'+m.forex_aud.toFixed(4)+fChg(m.forex_aud_chg):'--', m.forex_aud_chg],
+        ['GBP/USD','파운드/달러',m.forex_gbp?'$'+m.forex_gbp.toFixed(4)+fChg(m.forex_gbp_chg):'--', m.forex_gbp_chg],
+        ['DXY',    '달러인덱스',m.dxy?m.dxy.toFixed(2)+fChg(m.dxy_chg):'--', m.dxy_chg],
+      ].map(([n,s,v,c])=>`<div class="ticker-item"><div><div class="ticker-name">${n}</div><div class="ticker-sub">${s}</div></div><div><div class="ticker-price" style="color:${c!=null?(c>=0?'var(--green)':'var(--red)'):'var(--text)'}">${v}</div></div></div>`).join('');
       window._tdForex=true;ts('forexUpdated',new Date());}
       if(m.forex_krw&&$('ovKrw'))$('ovKrw').textContent='₩'+Math.round(m.forex_krw).toLocaleString();
     }
