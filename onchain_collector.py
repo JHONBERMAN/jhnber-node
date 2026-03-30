@@ -278,6 +278,10 @@ YAHOO_SYMBOLS = {
     "n225": "^N225", "hsi": "^HSI",          # 니케이·항셍 (TD 폴백)
     "gold": "GC=F", "silver": "SI=F", "oil": "CL=F",
     "brent": "BZ=F", "natgas": "NG=F", "copper": "HG=F",
+    # 환율 (Yahoo Finance)
+    "forex_krw": "USDKRW=X", "forex_jpy": "USDJPY=X",
+    "forex_eur": "EURUSD=X", "forex_cny": "USDCNY=X",
+    "forex_aud": "AUDUSD=X", "forex_gbp": "GBPUSD=X",
     "btc_usd": "BTC-USD",
 }
 
