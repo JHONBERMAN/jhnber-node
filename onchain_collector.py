@@ -65,12 +65,9 @@ _market_data_time = ""   # 가격이 실제 변동된 마지막 시각
 
 # ── Twelve Data 배치 심볼 ──────────────────────────────
 TD_SYMBOLS = [
-    # 주요 지수
+    # 주요 지수 7개만 (free 플랜 분당 8 크레딧 한도)
+    # 환율은 Frankfurter, M7은 Yahoo에서 별도 수집
     "SPX", "IXIC", "DJI", "DXY", "VIX", "N225", "HSI",
-    # 환율 (6개)
-    "EUR/USD", "USD/KRW", "USD/JPY", "USD/CNY", "AUD/USD", "GBP/USD",
-    # M7 빅테크
-    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
 ]
 
 # data.json 지수 키 매핑
@@ -2297,19 +2294,20 @@ def run_once():
         if td.get("m7"):
             print(f"    📈 M7: Twelve Data ({len(td['m7'])}개) 적용")
 
-    # TD M7 없을 경우 Yahoo 폴백
-    if not market.get("m7"):
+    # TD M7이 없을 경우 Yahoo chg 병합 (TD는 이제 지수만 담당)
+    # market["m7"]가 HL에서 왔으면 chg=0 상태 → Yahoo chg로 덮어써야 함
+    if not td.get("m7"):
         m7_changes = yahoo.get("_m7_changes", {})
         m7_fallback = yahoo.get("_m7_fallback", [])
         if m7_fallback:
             market["m7"] = m7_fallback
             print(f"    📈 M7: Yahoo 폴백 사용 ({len(m7_fallback)}개)")
-        elif hl.get("m7"):
-            # HL M7에 Yahoo 변동률 적용
-            for item in hl["m7"]:
+        elif market.get("m7"):
+            # HL m7에 Yahoo 변동률 병합 (chg=0 덮어쓰기)
+            for item in market["m7"]:
                 if item["sym"] in m7_changes:
                     item["chg"] = m7_changes[item["sym"]]
-            market["m7"] = hl["m7"]
+            print(f"    📈 M7: HL 가격 + Yahoo chg 병합")
         else:
             market["m7"] = []
 
