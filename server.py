@@ -40,7 +40,10 @@ PORT = int(os.environ.get("PORT", 5000))
 _cache = {"body": b"", "etag": "", "mtime": 0, "gzipped": b""}
 
 # ── 실시간 방문자 추적 (메모리 + 파일 + 환경변수 영속) ──
-VISITOR_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "visitor_count.json")
+# Railway Volume이 /data에 마운트되어 있으면 그쪽에 저장 (재배포에도 영속)
+_VOLUME_PATH = "/data/visitor_count.json"
+_LOCAL_PATH  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "visitor_count.json")
+VISITOR_FILE = _VOLUME_PATH if os.path.isdir("/data") else _LOCAL_PATH
 VISITOR_TOTAL_BASE = int(os.environ.get("VISITOR_TOTAL_BASE", 0))  # 재배포 시 누적 베이스
 
 def _load_visitor_persist():

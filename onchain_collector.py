@@ -2174,7 +2174,14 @@ def collect_twelve_data() -> dict:
 
         close = safe_float(item.get("close", 0))
         prev  = safe_float(item.get("previous_close") or close)
-        chg   = round(((close - prev) / prev * 100) if prev else 0.0, 2)
+        # TD API가 percent_change를 직접 제공 — 있으면 우선 사용 (previous_close 누락 시 chg=0 방지)
+        _pct = item.get("percent_change")
+        if _pct not in (None, "", "0", 0):
+            chg = round(safe_float(_pct), 2)
+        elif prev:
+            chg = round((close - prev) / prev * 100, 2)
+        else:
+            chg = 0.0
         close = round(close, 4)
 
         if sym in TD_INDEX_MAP:
@@ -2322,9 +2329,9 @@ def run_once():
         "hsi":   _q(market.get("hsi"),   0),
         "vix":   _q(market.get("vix"),   1),
         "dxy":   _q(market.get("dxy"),   1),
-        "forex_krw": _q(market.get("forex_krw"), 0),
+        "forex_krw": _q(market.get("forex_krw"), 1),
         "forex_jpy": _q(market.get("forex_jpy"), 2),
-        "forex_eur": _q(market.get("forex_eur"), 2),
+        "forex_eur": _q(market.get("forex_eur"), 3),
     }
     _new_hash = _hl.md5(json.dumps(_chk, sort_keys=True).encode()).hexdigest()[:12]
     if _new_hash != _market_hash:
